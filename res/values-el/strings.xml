@@ -28,7 +28,7 @@
     <string name="bt_enable_cancel" msgid="1988832367505151727">"Άκυρο"</string>
     <string name="bt_enable_ok" msgid="3432462749994538265">"Ενεργοποίηση"</string>
     <string name="incoming_file_confirm_title" msgid="8139874248612182627">"Μεταφορά αρχείου"</string>
-    <string name="incoming_file_confirm_content" msgid="3243341858335056258">"Ο χρήστης της συσκευής \"%1$s\" θέλει να σας στείλει το %2$s (%3$s). "\n\n" Αποδοχή του αρχείου;"</string>
+    <string name="incoming_file_confirm_content" msgid="3243341858335056258">"Ο χρήστης της συσκευής \"%1$s\" θέλει να σας στείλει το %2$s%3$s. "\n\n" Αποδοχή του αρχείου;"</string>
     <string name="incoming_file_confirm_cancel" msgid="2973321832477704805">"Απόρριψη"</string>
     <string name="incoming_file_confirm_ok" msgid="281462442932231475">"Αποδοχή"</string>
     <string name="incoming_file_confirm_timeout_ok" msgid="860272542827665475">"ΟΚ"</string>

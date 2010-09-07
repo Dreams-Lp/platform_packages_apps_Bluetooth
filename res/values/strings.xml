@@ -59,7 +59,7 @@
     <!--Title -->
     <string name="incoming_file_confirm_title">File transfer</string>
     <!--content -->
-    <string name="incoming_file_confirm_content">\u0022%1$s\u0022 wants to send you %2$s (%3$s). \n\n Accept the file? </string>
+    <string name="incoming_file_confirm_content">\u0022%1$s\u0022 wants to send you %2$s%3$s. \n\n Accept the file? </string>
     <!-- Label for a cancel button. -->
     <string name="incoming_file_confirm_cancel">Decline</string>
     <!-- Label for a confirm button.-->

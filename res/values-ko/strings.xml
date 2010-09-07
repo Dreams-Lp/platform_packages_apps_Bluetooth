@@ -28,7 +28,7 @@
     <string name="bt_enable_cancel" msgid="1988832367505151727">"취소"</string>
     <string name="bt_enable_ok" msgid="3432462749994538265">"사용"</string>
     <string name="incoming_file_confirm_title" msgid="8139874248612182627">"파일 전송"</string>
-    <string name="incoming_file_confirm_content" msgid="3243341858335056258">"\'%1$s\'이(가) %2$s(%3$s)을(를) 보내려고 합니다. "\n\n" 파일을 수락하시겠습니까?"</string>
+    <string name="incoming_file_confirm_content" msgid="3243341858335056258">"\'%1$s\'이(가) %2$s%3$s을(를) 보내려고 합니다. "\n\n" 파일을 수락하시겠습니까?"</string>
     <string name="incoming_file_confirm_cancel" msgid="2973321832477704805">"거부"</string>
     <string name="incoming_file_confirm_ok" msgid="281462442932231475">"수락"</string>
     <string name="incoming_file_confirm_timeout_ok" msgid="860272542827665475">"확인"</string>
