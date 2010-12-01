@@ -71,6 +71,7 @@ public class BluetoothPbapCallLogComposer {
     private static final int CALLER_NUMBERLABEL_COLUMN_INDEX = 5;
 
     // Property for call log entry
+    // Strings according to PBAP v1.0 chapter 3.1.4.1
     private static final String VCARD_PROPERTY_X_TIMESTAMP = "X-IRMC-CALL-DATETIME";
     private static final String VCARD_PROPERTY_CALLTYPE_INCOMING = "RECEIVED";
     private static final String VCARD_PROPERTY_CALLTYPE_OUTGOING = "DIALED";
