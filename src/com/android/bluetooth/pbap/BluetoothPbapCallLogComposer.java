@@ -192,7 +192,7 @@ public class BluetoothPbapCallLogComposer {
         final VCardBuilder builder = new VCardBuilder(vcardType);
         String name = mCursor.getString(CALLER_NAME_COLUMN_INDEX);
         if (TextUtils.isEmpty(name)) {
-            name = mCursor.getString(NUMBER_COLUMN_INDEX);
+            name = "";
         }
         final boolean needCharset = !(VCardUtils.containsOnlyPrintableAscii(name));
         builder.appendLine(VCardConstants.PROPERTY_FN, name, needCharset, false);
