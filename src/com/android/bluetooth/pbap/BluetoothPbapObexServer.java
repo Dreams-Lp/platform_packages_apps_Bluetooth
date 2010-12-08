@@ -39,6 +39,7 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.provider.CallLog.Calls;
 import android.provider.CallLog;
+import android.provider.ContactsContract.Contacts;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -466,6 +467,54 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
         }
     }
 
+    final static class VcardBuilder {
+        private StringBuilder buffer = new StringBuilder();
+        private int count = 0;
+        private final AppParamValue appParamValue;
+        private final String order;
+
+        private VcardBuilder(AppParamValue appParamValue, int orderBy) {
+            this.appParamValue = appParamValue;
+            order = (orderBy == BluetoothPbapObexServer.ORDER_BY_INDEXED) ?
+                    Contacts._ID : Contacts.DISPLAY_NAME + " COLLATE LOCALIZED ASC";
+            buffer.append("<?xml version=\"1.0\"?>");
+            buffer.append("<!DOCTYPE vcard-listing SYSTEM \"vcard-listing.dtd\">");
+            buffer.append("<vCard-listing version=\"1.0\">");
+        }
+
+        @Override
+        public String toString() {
+            if (V) Log.v(TAG, "itemsFound =" + count);
+            return buffer.toString() + "</vCard-listing>";
+        }
+
+        void append(final long handle, final String name) {
+            if (V) Log.v(TAG, "got: '" + name + "' with handle '" + handle + "'");
+            buffer.append("<card handle=\"");
+            buffer.append(handle);
+            buffer.append(".vcf\" name=\"");
+            buffer.append(name);
+            buffer.append("\"/>");
+            count++;
+        }
+
+        boolean needMore() {
+            return (count < appParamValue.maxListCount);
+        }
+        String getSearchValue() {
+            return appParamValue.searchValue;
+        }
+        int getType() {
+            return appParamValue.needTag;
+        }
+        String getOrder() {
+            return order;
+        }
+        int getStartOffset() {
+            return appParamValue.listStartOffset;
+        }
+    }
+
     /** To parse obex application parameter */
     private final boolean parseApplicationParameter(final byte[] appParam,
             AppParamValue appParamValue) {
@@ -541,100 +590,22 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
     }
 
     /** Form and Send an XML format String to client for Phone book listing */
-    private final int sendVcardListingXml(final int type, Operation op,
-            final int maxListCount, final int listStartOffset, final String searchValue,
-            String searchAttr) {
-        StringBuilder result = new StringBuilder();
-        int itemsFound = 0;
-        result.append("<?xml version=\"1.0\"?>");
-        result.append("<!DOCTYPE vcard-listing SYSTEM \"vcard-listing.dtd\">");
-        result.append("<vCard-listing version=\"1.0\">");
+    private final int sendVcardListingXml(Operation op, final AppParamValue appParamValue) {
+        VcardBuilder builder = new VcardBuilder(appParamValue, mOrderBy);
 
-        // Phonebook listing request
-        if (type == ContentType.PHONEBOOK) {
-            if (searchAttr.equals("0")) { // search by name
-                itemsFound = createList(maxListCount, listStartOffset, searchValue, result,
-                        "name");
-            } else if (searchAttr.equals("1")) { // search by number
-                itemsFound = createList(maxListCount, listStartOffset, searchValue, result,
-                        "number");
+        if (builder.getType() == ContentType.PHONEBOOK) {
+            if (appParamValue.searchAttr.equals("0")) { // search by name
+                mVcardManager.buildPhonebookContactsByName(builder);
+            } else if (appParamValue.searchAttr.equals("1")) { // search by number
+                mVcardManager.buildPhonebookContactsByNumber(builder);
             }// end of search by number
             else {
                 return ResponseCodes.OBEX_HTTP_PRECON_FAILED;
             }
-        }
-        // Call history listing request
-        else {
-            ArrayList<String> nameList = mVcardManager.loadCallHistoryList(type);
-            int requestSize = nameList.size() >= maxListCount ? maxListCount : nameList.size();
-            int startPoint = listStartOffset;
-            int endPoint = startPoint + requestSize;
-            if (endPoint > nameList.size()) {
-                endPoint = nameList.size();
-            }
-            if (D) Log.d(TAG, "call log list, size=" + requestSize + " offset=" + listStartOffset);
-
-            for (int j = startPoint; j < endPoint; j++) {
-                // listing object begin with 1.vcf
-                result.append("<card handle=\"" + (j + 1) + ".vcf\" name=\"" + nameList.get(j)
-                        + "\"" + "/>");
-                itemsFound++;
-            }
-        }
-        result.append("</vCard-listing>");
-
-        if (V) Log.v(TAG, "itemsFound =" + itemsFound);
-
-        return pushBytes(op, result.toString());
-    }
-
-    private int createList(final int maxListCount, final int listStartOffset,
-            final String searchValue, StringBuilder result, String type) {
-        int itemsFound = 0;
-        ArrayList<String> nameList = mVcardManager.getPhonebookNameList(mOrderBy);
-        final int requestSize = nameList.size() >= maxListCount ? maxListCount : nameList.size();
-        final int listSize = nameList.size();
-        String compareValue = "", currentValue;
-
-        if (D) Log.d(TAG, "search by " + type + ", requestSize=" + requestSize + " offset="
-                    + listStartOffset + " searchValue=" + searchValue);
-
-        if (type.equals("number")) {
-            // query the number, to get the names
-            ArrayList<String> names = mVcardManager.getContactNamesByNumber(searchValue);
-            for (int i = 0; i < names.size(); i++) {
-                compareValue = names.get(i).trim();
-                if (D) Log.d(TAG, "compareValue=" + compareValue);
-                for (int pos = listStartOffset; pos < listSize &&
-                        itemsFound < requestSize; pos++) {
-                    currentValue = nameList.get(pos);
-                    if (D) Log.d(TAG, "currentValue=" + currentValue);
-                    if (currentValue.startsWith(compareValue)) {
-                        itemsFound++;
-                        result.append("<card handle=\"" + pos + ".vcf\" name=\""
-                                + currentValue + "\"" + "/>");
-                    }
-                }
-                if (itemsFound >= requestSize) {
-                    break;
-                }
-            }
         } else {
-            if (searchValue != null) {
-                compareValue = searchValue.trim();
-            }
-            for (int pos = listStartOffset; pos < listSize &&
-                    itemsFound < requestSize; pos++) {
-                currentValue = nameList.get(pos);
-                if (D) Log.d(TAG, "currentValue=" + currentValue);
-                if (searchValue == null || currentValue.startsWith(compareValue)) {
-                    itemsFound++;
-                    result.append("<card handle=\"" + pos + ".vcf\" name=\""
-                            + currentValue + "\"" + "/>");
-                }
-            }
+            mVcardManager.buildCallHistory(builder);
         }
-        return itemsFound;
+        return pushBytes(op, builder.toString());
     }
 
     /**
@@ -810,9 +781,7 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
             mOrderBy = ORDER_BY_ALPHABETICAL;
         }
 
-        int sendResult = sendVcardListingXml(appParamValue.needTag, op, appParamValue.maxListCount,
-                appParamValue.listStartOffset, appParamValue.searchValue,
-                appParamValue.searchAttr);
+        int sendResult = sendVcardListingXml(op, appParamValue);
         return sendResult;
     }
 
@@ -844,7 +813,7 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
             Log.w(TAG, "wrong path!");
             return ResponseCodes.OBEX_HTTP_NOT_ACCEPTABLE;
         } else if (appParamValue.needTag == ContentType.PHONEBOOK) {
-            if (intIndex < 0 || intIndex >= size) {
+            if (intIndex < 0) {
                 Log.w(TAG, "The requested vcard is not acceptable! name= " + name);
                 return ResponseCodes.OBEX_HTTP_NOT_FOUND;
             } else if (intIndex == 0) {
@@ -852,8 +821,7 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
                 String ownerVcard = mVcardManager.getOwnerPhoneNumberVcard(vcard21);
                 return pushBytes(op, ownerVcard);
             } else {
-                return mVcardManager.composeAndSendPhonebookOneVcard(op, intIndex, vcard21, null,
-                        mOrderBy );
+                return mVcardManager.composeAndSendPhonebookOneVcard(op, intIndex, vcard21);
             }
         } else {
             if (intIndex <= 0 || intIndex > size) {
