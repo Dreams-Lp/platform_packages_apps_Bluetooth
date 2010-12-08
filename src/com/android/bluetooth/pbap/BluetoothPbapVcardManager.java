@@ -50,6 +50,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.bluetooth.R;
+import com.android.bluetooth.pbap.BluetoothPbapObexServer.VCardListingBuilder;
 import com.android.vcard.VCardComposer;
 import com.android.vcard.VCardConfig;
 import com.android.vcard.VCardPhoneNumberTranslationCallback;
@@ -202,9 +203,9 @@ public class BluetoothPbapVcardManager {
         return size;
     }
 
-    public final ArrayList<String> loadCallHistoryList(final int type) {
+    void buildCallHistory(VCardListingBuilder builder) {
         final Uri myUri = CallLog.Calls.CONTENT_URI;
-        String selection = BluetoothPbapObexServer.createSelectionPara(type);
+        String selection = BluetoothPbapObexServer.createSelectionPara(builder.getType());
         String[] projection = new String[] {
                 Calls.NUMBER, Calls.CACHED_NAME, Calls.NUMBER_PRESENTATION
         };
@@ -213,13 +214,12 @@ public class BluetoothPbapVcardManager {
         final int CALLS_NUMBER_PRESENTATION_COLUMN_INDEX = 2;
 
         Cursor callCursor = null;
-        ArrayList<String> list = new ArrayList<String>();
         try {
             callCursor = mResolver.query(myUri, projection, selection, null,
                     CALLLOG_SORT_ORDER);
-            if (callCursor != null) {
-                for (callCursor.moveToFirst(); !callCursor.isAfterLast();
-                        callCursor.moveToNext()) {
+
+            if (callCursor != null && callCursor.moveToPosition(builder.getStartOffset())) {
+                while (!callCursor.isAfterLast() && builder.needMore()) {
                     String name = callCursor.getString(CALLS_NAME_COLUMN_INDEX);
                     if (TextUtils.isEmpty(name)) {
                         // name not found, use number instead
@@ -231,7 +231,9 @@ public class BluetoothPbapVcardManager {
                             name = callCursor.getString(CALLS_NUMBER_COLUMN_INDEX);
                         }
                     }
-                    list.add(name);
+                    // Need to add one since the most recent call shall be 1.vcf.
+                    builder.append(callCursor.getPosition() + 1, name);
+                    callCursor.moveToNext();
                 }
             }
         } catch (CursorWindowAllocationException e) {
@@ -242,11 +244,9 @@ public class BluetoothPbapVcardManager {
                 callCursor = null;
             }
         }
-        return list;
     }
 
-    public final ArrayList<String> getPhonebookNameList(final int orderByWhat) {
-        ArrayList<String> nameList = new ArrayList<String>();
+    void buildPhonebookContactsByName(VCardListingBuilder builder) {
         //Owner vCard enhancement. Use "ME" profile if configured
         String ownerName = null;
         if (BluetoothPbapConfig.useProfileForOwnerVcard()) {
@@ -255,32 +255,37 @@ public class BluetoothPbapVcardManager {
         if (ownerName == null || ownerName.length()==0) {
             ownerName = BluetoothPbapService.getLocalPhoneName();
         }
-        nameList.add(ownerName);
         //End enhancement
 
-        final Uri myUri = Contacts.CONTENT_URI;
+        int startOffset = builder.getStartOffset();
+        String searchValue = builder.getSearchValue();
+
+        // If no search value is provided myself contact will be added first.
+        // If a search value is provided myself contact will be matched towards this
+        // value. Since my self contact always is located at the first position only add it
+        // if start offset is zero. If it matches but start offset is not zero make sure
+        // the start offset is compensated. This is needed since myself contact is not
+        // stored in the database.
+        if (TextUtils.isEmpty(searchValue) || ownerName.startsWith(searchValue)) {
+            if (startOffset == 0) {
+                builder.append(0, ownerName);
+            } else {
+                startOffset--;
+            }
+        }
+
+        if (V) {
+            Log.v(TAG, "getPhonebookContactsByName, order by " + builder.getOrder() +
+                    ", search for " + builder.getSearchValue());
+        }
+
         Cursor contactCursor = null;
         try {
-            if (orderByWhat == BluetoothPbapObexServer.ORDER_BY_INDEXED) {
-                if (V) Log.v(TAG, "getPhonebookNameList, order by index");
-                contactCursor = mResolver.query(myUri, CONTACTS_PROJECTION, CLAUSE_ONLY_VISIBLE,
-                        null, Contacts._ID);
-            } else if (orderByWhat == BluetoothPbapObexServer.ORDER_BY_ALPHABETICAL) {
-                if (V) Log.v(TAG, "getPhonebookNameList, order by alpha");
-                contactCursor = mResolver.query(myUri, CONTACTS_PROJECTION, CLAUSE_ONLY_VISIBLE,
-                        null, Contacts.DISPLAY_NAME);
-            }
-            if (contactCursor != null) {
-                for (contactCursor.moveToFirst(); !contactCursor.isAfterLast(); contactCursor
-                        .moveToNext()) {
-                    String name = contactCursor.getString(CONTACTS_NAME_COLUMN_INDEX);
-                    long id = contactCursor.getLong(CONTACTS_ID_COLUMN_INDEX);
-                    if (TextUtils.isEmpty(name)) {
-                        name = mContext.getString(android.R.string.unknownName);
-                    }
-                    nameList.add(name + "," + id);
-                }
-            }
+            String where = CLAUSE_ONLY_VISIBLE + " AND " + Contacts.DISPLAY_NAME + " like ?";
+            contactCursor = mResolver.query(Contacts.CONTENT_URI, CONTACTS_PROJECTION, where,
+                    new String[] { builder.getSearchValue() + '%' }, builder.getOrder());
+
+            addContactVcards(builder, contactCursor, startOffset);
         } catch (CursorWindowAllocationException e) {
             Log.e(TAG, "CursorWindowAllocationException while getting Phonebook name list");
         } finally {
@@ -289,39 +294,28 @@ public class BluetoothPbapVcardManager {
                 contactCursor = null;
             }
         }
-        return nameList;
     }
 
-    public final ArrayList<String> getContactNamesByNumber(final String phoneNumber) {
-        ArrayList<String> nameList = new ArrayList<String>();
-        ArrayList<String> tempNameList = new ArrayList<String>();
-
-        Cursor contactCursor = null;
-        Uri uri = null;
-
-        if (phoneNumber != null && phoneNumber.length() == 0) {
-            uri = Contacts.CONTENT_URI;
-        } else {
-            uri = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI,
-                Uri.encode(phoneNumber));
+    void buildPhonebookContactsByNumber(VCardListingBuilder builder) {
+        // If no search value is provided it will be the same as search by name
+        if (TextUtils.isEmpty(builder.getSearchValue())) {
+            buildPhonebookContactsByName(builder);
+            return;
         }
 
-        try {
-            contactCursor = mResolver.query(uri, CONTACTS_PROJECTION, CLAUSE_ONLY_VISIBLE,
-                        null, Contacts._ID);
+        if (V) {
+            Log.v(TAG, "getPhonebookContactsByNumber, order by " + builder.getOrder() +
+                    ", search for " + builder.getSearchValue());
+        }
 
-            if (contactCursor != null) {
-                for (contactCursor.moveToFirst(); !contactCursor.isAfterLast(); contactCursor
-                        .moveToNext()) {
-                    String name = contactCursor.getString(CONTACTS_NAME_COLUMN_INDEX);
-                    long id = contactCursor.getLong(CONTACTS_ID_COLUMN_INDEX);
-                    if (TextUtils.isEmpty(name)) {
-                        name = mContext.getString(android.R.string.unknownName);
-                    }
-                    if (V) Log.v(TAG, "got name " + name + " by number " + phoneNumber + " @" + id);
-                    tempNameList.add(name + "," + id);
-                }
-            }
+        Cursor contactCursor = null;
+        try {
+            Uri uri = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI,
+                   Uri.encode(builder.getSearchValue()));
+            contactCursor = mResolver.query(uri, CONTACTS_PROJECTION, CLAUSE_ONLY_VISIBLE,
+                   null, builder.getOrder());
+
+            addContactVcards(builder, contactCursor, builder.getStartOffset());
         } catch (CursorWindowAllocationException e) {
             Log.e(TAG, "CursorWindowAllocationException while getting contact names");
         } finally {
@@ -330,14 +324,24 @@ public class BluetoothPbapVcardManager {
                 contactCursor = null;
             }
         }
-        int tempListSize = tempNameList.size();
-        for (int index = 0; index < tempListSize; index++) {
-            String object = tempNameList.get(index);
-            if (!nameList.contains(object))
-                nameList.add(object);
-        }
+    }
 
-        return nameList;
+    private void addContactVcards(VCardListingBuilder builder, Cursor cursor, int startOffset) {
+        if (cursor != null && cursor.moveToPosition(startOffset)) {
+            long tmpHandle = -1;
+            while (!cursor.isAfterLast() && builder.needMore()) {
+                String name = cursor.getString(CONTACTS_NAME_COLUMN_INDEX);
+                long handle = cursor.getLong(CONTACTS_ID_COLUMN_INDEX);
+                if (handle == tmpHandle) return;
+                tmpHandle = handle;
+
+                if (TextUtils.isEmpty(name)) {
+                    name = mContext.getString(android.R.string.unknownName);
+                }
+                builder.append(handle, name);
+                cursor.moveToNext();
+            }
+        }
     }
 
     public final int composeAndSendCallLogVcards(final int type, Operation op,
@@ -452,64 +456,35 @@ public class BluetoothPbapVcardManager {
         if (V) Log.v(TAG, "Query selection is: " + selection);
 
         return composeAndSendVCards(op, selection, vcardType21, ownerVCard, true,
-            ignorefilter, filter);
+                ignorefilter, filter);
     }
 
-    public final int composeAndSendPhonebookOneVcard(Operation op, final int offset,
-            final boolean vcardType21, String ownerVCard, int orderByWhat,
-            boolean ignorefilter, byte[] filter) {
-        if (offset < 1) {
-            Log.e(TAG, "Internal error: offset is not correct.");
-            return ResponseCodes.OBEX_HTTP_INTERNAL_ERROR;
-        }
-        final Uri myUri = Contacts.CONTENT_URI;
+    public final int composeAndSendPhonebookOneVcard(Operation op, final int handle,
+            final boolean vcardType21, boolean ignorefilter, byte[] filter) {
         Cursor contactCursor = null;
-        String selection = null;
-        long contactId = 0;
-        if (orderByWhat == BluetoothPbapObexServer.ORDER_BY_INDEXED) {
-            try {
-                contactCursor = mResolver.query(myUri, CONTACTS_PROJECTION, CLAUSE_ONLY_VISIBLE,
-                        null, Contacts._ID);
-                if (contactCursor != null) {
-                    contactCursor.moveToPosition(offset - 1);
-                    contactId = contactCursor.getLong(CONTACTS_ID_COLUMN_INDEX);
-                    if (V) Log.v(TAG, "Query startPointId = " + contactId);
-                }
-            } catch (CursorWindowAllocationException e) {
-                Log.e(TAG, "CursorWindowAllocationException while composing phonebook one vcard order by index");
-            } finally {
-                if (contactCursor != null) {
-                    contactCursor.close();
-                    contactCursor = null;
-                }
+        boolean found = false;
+        String selection = Contacts._ID + "=" + handle + " AND " + CLAUSE_ONLY_VISIBLE;
+
+        // check if handle exists
+        try {
+            contactCursor = mResolver.query(Contacts.CONTENT_URI, CONTACTS_PROJECTION, selection,
+                    null, Contacts._ID);
+            found = contactCursor.getCount() > 0;
+        } catch (CursorWindowAllocationException e) {
+            Log.e(TAG, "CursorWindowAllocationException while composing phonebook one vcard");
+        } finally {
+            if (contactCursor != null) {
+                contactCursor.close();
+                contactCursor = null;
             }
-        } else if (orderByWhat == BluetoothPbapObexServer.ORDER_BY_ALPHABETICAL) {
-            try {
-                contactCursor = mResolver.query(myUri, CONTACTS_PROJECTION, CLAUSE_ONLY_VISIBLE,
-                        null, Contacts.DISPLAY_NAME);
-                if (contactCursor != null) {
-                    contactCursor.moveToPosition(offset - 1);
-                    contactId = contactCursor.getLong(CONTACTS_ID_COLUMN_INDEX);
-                    if (V) Log.v(TAG, "Query startPointId = " + contactId);
-                }
-            } catch (CursorWindowAllocationException e) {
-                Log.e(TAG, "CursorWindowAllocationException while composing phonebook one vcard order by alphabetical");
-            } finally {
-                if (contactCursor != null) {
-                    contactCursor.close();
-                    contactCursor = null;
-                }
-            }
-        } else {
-            Log.e(TAG, "Parameter orderByWhat is not supported!");
-            return ResponseCodes.OBEX_HTTP_INTERNAL_ERROR;
         }
-        selection = Contacts._ID + "=" + contactId;
 
-        if (V) Log.v(TAG, "Query selection is: " + selection);
-
-        return composeAndSendVCards(op, selection, vcardType21, ownerVCard, true,
-            ignorefilter, filter);
+        // if handle exists compose vcard otherwise return error
+        if (found) {
+            return composeAndSendVCards(op, selection, vcardType21, null, true,
+                    ignorefilter, filter);
+        }
+        return ResponseCodes.OBEX_HTTP_NOT_FOUND;
     }
 
     public final int composeAndSendVCards(Operation op, final String selection,
