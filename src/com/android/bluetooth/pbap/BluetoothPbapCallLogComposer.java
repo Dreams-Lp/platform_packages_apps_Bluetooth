@@ -194,12 +194,16 @@ public class BluetoothPbapCallLogComposer {
         if (TextUtils.isEmpty(name)) {
             name = mCursor.getString(NUMBER_COLUMN_INDEX);
         }
+        if (name != null && (name.equals("-1") || name.equals("-2") || name.equals("-3"))) {
+            name = "";
+        }
         final boolean needCharset = !(VCardUtils.containsOnlyPrintableAscii(name));
         builder.appendLine(VCardConstants.PROPERTY_FN, name, needCharset, false);
         builder.appendLine(VCardConstants.PROPERTY_N, name, needCharset, false);
 
         String number = mCursor.getString(NUMBER_COLUMN_INDEX);
-        if (number.equals("-1")) {
+        if (number != null && (number.equals("-1") || number.equals("-2") ||
+                number.equals("-3"))) {
             number = mContext.getString(R.string.unknownNumber);
         }
         final int type = mCursor.getInt(CALLER_NUMBERTYPE_COLUMN_INDEX);
