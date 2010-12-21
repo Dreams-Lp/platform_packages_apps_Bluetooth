@@ -184,6 +184,10 @@ public class BluetoothPbapVcardManager {
                     if (TextUtils.isEmpty(name)) {
                         // name not found,use number instead
                         name = callCursor.getString(CALLS_NUMBER_COLUMN_INDEX);
+                        if (name != null && (name.equals("-1") || name.equals("-2") ||
+                                name.equals("-3"))) {
+                            name = mContext.getString(R.string.unknownNumber);
+                        }
                     }
                     list.add(name);
                 }
