@@ -137,5 +137,23 @@
                 <action android:name="android.bluetooth.adapter.action.STATE_CHANGED"/>
             </intent-filter>
         </receiver>
+        <provider
+            android:name=".ftp.BluetoothFtpProvider"
+            android:authorities="com.stericsson.bluetooth.ftp">
+            <path-permission
+                android:path="/btftp"
+                android:permission="android.permission.ACCESS_BLUETOOTH_SHARE" />
+        </provider>
+        <service
+            android:name=".ftp.BluetoothFtpService"
+            android:permission="android.permission.ACCESS_BLUETOOTH_SHARE" >
+        </service>
+        <receiver
+            android:name=".ftp.BluetoothFtpReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.adapter.action.STATE_CHANGED" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
