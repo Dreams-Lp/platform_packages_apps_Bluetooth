@@ -259,7 +259,9 @@ public class Constants {
 
     public static final String BLUETOOTHOPP_CHANNEL_PREFERENCE = "btopp_channels";
 
-    public static String filename_SEQUENCE_SEPARATOR = "-";
+    public static final int BLUETOOTHOPP_LENGTH_UNKNOWN = -1;
+
+    public static final String filename_SEQUENCE_SEPARATOR = "-";
 
     public static void updateShareStatus(Context context, int id, int status) {
         Uri contentUri = Uri.parse(BluetoothShare.CONTENT_URI + "/" + id);

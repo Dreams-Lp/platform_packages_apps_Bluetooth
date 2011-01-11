@@ -198,7 +198,10 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
             length = (Long)request.getHeader(HeaderSet.LENGTH);
             mimeType = (String)request.getHeader(HeaderSet.TYPE);
 
-            if (length == 0) {
+            if (length == null) {
+                if (D) Log.w(TAG, "length is NULL, we'll try to continue with -1");
+                length = new Long(Constants.BLUETOOTHOPP_LENGTH_UNKNOWN);
+            } else if (length == 0) {
                 if (D) Log.w(TAG, "length is 0, reject the transfer");
                 pre_reject = true;
                 obexResponse = ResponseCodes.OBEX_HTTP_LENGTH_REQUIRED;
@@ -500,7 +503,15 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
             if (D) Log.d(TAG, "receiving file interrupted by user.");
             status = BluetoothShare.STATUS_CANCELED;
         } else {
-            if (position == fileInfo.mLength) {
+            if ((Constants.BLUETOOTHOPP_LENGTH_UNKNOWN == fileInfo.mLength && !error) ||
+                position == fileInfo.mLength) {
+                // Update the fileSize since the real length is now known.
+                if (Constants.BLUETOOTHOPP_LENGTH_UNKNOWN == fileInfo.mLength) {
+                    ContentValues updateValues = new ContentValues();
+                    updateValues.put(BluetoothShare.TOTAL_BYTES, position);
+                    updateValues.put(BluetoothShare.CURRENT_BYTES, position);
+                    mContext.getContentResolver().update(contentUri, updateValues, null, null);
+                }
                 if (D) Log.d(TAG, "Receiving file completed for " + fileInfo.mFileName);
                 status = BluetoothShare.STATUS_SUCCESS;
             } else {

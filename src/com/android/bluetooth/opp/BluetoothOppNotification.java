@@ -315,8 +315,8 @@ class BluetoothOppNotification {
             // TODO: split description into two rows with filename in second row
             Notification.Builder b = new Notification.Builder(mContext);
             b.setContentTitle(item.description);
-            b.setContentInfo(
-                    BluetoothOppUtility.formatProgressText(item.totalTotal, item.totalCurrent));
+            b.setContentInfo(BluetoothOppUtility.formatProgressText(mContext, item.totalTotal,
+                    item.totalCurrent));
             b.setProgress(item.totalTotal, item.totalCurrent, item.totalTotal == -1);
             b.setWhen(item.timeStamp);
             if (item.direction == BluetoothShare.DIRECTION_OUTBOUND) {
