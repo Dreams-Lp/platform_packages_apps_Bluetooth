@@ -280,7 +280,7 @@ class BluetoothOppNotification {
                     item.totalTotal == -1);
 
             expandedView.setTextViewText(R.id.progress_text, BluetoothOppUtility
-                    .formatProgressText(item.totalTotal, item.totalCurrent));
+                    .formatProgressText(mContext, item.totalTotal, item.totalCurrent));
 
             // Build the notification object
             Notification n = new Notification();

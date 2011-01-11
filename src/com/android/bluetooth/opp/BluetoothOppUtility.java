@@ -46,6 +46,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.database.Cursor;
+import android.text.format.Formatter;
 import android.util.Log;
 
 import java.io.File;
@@ -235,8 +236,10 @@ public class BluetoothOppUtility {
     /**
      * Helper function to build the progress text.
      */
-    public static String formatProgressText(long totalBytes, long currentBytes) {
-        if (totalBytes <= 0) {
+    public static String formatProgressText(Context context, long totalBytes, long currentBytes) {
+        if (Constants.BLUETOOTHOPP_LENGTH_UNKNOWN == totalBytes) {
+            return Formatter.formatFileSize(context, currentBytes);
+        } else if (totalBytes <= 0) {
             return "0%";
         }
         long progress = currentBytes * 100 / totalBytes;
@@ -244,6 +247,17 @@ public class BluetoothOppUtility {
         sb.append(progress);
         sb.append('%');
         return sb.toString();
+    }
+
+    /**
+     * Helper function to build the size text.
+     */
+    public static String formatSizeText(Context context, long totalBytes) {
+        if (Constants.BLUETOOTHOPP_LENGTH_UNKNOWN == totalBytes) {
+            return "";
+        }
+
+        return " (" + Formatter.formatFileSize(context, totalBytes) + ")";
     }
 
     /**

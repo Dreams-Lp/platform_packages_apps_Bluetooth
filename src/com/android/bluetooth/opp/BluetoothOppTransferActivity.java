@@ -271,14 +271,19 @@ public class BluetoothOppTransferActivity extends AlertActivity implements
             tmp = getString(R.string.download_line2, mTransInfo.mFileName);
             mLine2View.setText(tmp);
             mLine3View = (TextView)mView.findViewById(R.id.line3_view);
-            tmp = getString(R.string.download_line3, Formatter.formatFileSize(this,
-                    mTransInfo.mTotalBytes));
-            mLine3View.setText(tmp);
+            if (Constants.BLUETOOTHOPP_LENGTH_UNKNOWN == mTransInfo.mTotalBytes) {
+                mLine3View.setVisibility(View.GONE);
+            } else {
+                tmp = getString(R.string.download_line3, Formatter.formatFileSize(this,
+                        mTransInfo.mTotalBytes));
+                mLine3View.setText(tmp);
+            }
             mLine5View = (TextView)mView.findViewById(R.id.line5_view);
             if (mWhichDialog == DIALOG_RECEIVE_ONGOING) {
                 tmp = getString(R.string.download_line5);
             } else if (mWhichDialog == DIALOG_RECEIVE_COMPLETE_SUCCESS) {
                 tmp = getString(R.string.download_succ_line5);
+                mProgressTransfer.setIndeterminate(false);
             }
             mLine5View.setText(tmp);
         } else if (mWhichDialog == DIALOG_SEND_ONGOING
@@ -309,9 +314,13 @@ public class BluetoothOppTransferActivity extends AlertActivity implements
                 tmp = getString(R.string.download_fail_line2, mTransInfo.mFileName);
                 mLine2View.setText(tmp);
                 mLine3View = (TextView)mView.findViewById(R.id.line3_view);
-                tmp = getString(R.string.bt_sm_2_2, Formatter.formatFileSize(this,
-                        mTransInfo.mTotalBytes));
-                mLine3View.setText(tmp);
+                if (Constants.BLUETOOTHOPP_LENGTH_UNKNOWN == mTransInfo.mTotalBytes) {
+                    mLine3View.setVisibility(View.GONE);
+                } else {
+                    tmp = getString(R.string.bt_sm_2_2, Formatter.formatFileSize(this,
+                            mTransInfo.mTotalBytes));
+                    mLine3View.setText(tmp);
+                }
             } else {
                 mLine1View = (TextView)mView.findViewById(R.id.line1_view);
                 tmp = getString(R.string.download_fail_line1);
@@ -424,18 +433,25 @@ public class BluetoothOppTransferActivity extends AlertActivity implements
             return;
         }
 
-        if (mTransInfo.mTotalBytes == 0) {
-            // if Max and progress both equal 0, the progress display 100%.
-            // Below is to fix it.
-            mProgressTransfer.setMax(100);
+        if (Constants.BLUETOOTHOPP_LENGTH_UNKNOWN != mTransInfo.mTotalBytes) {
+            if (mTransInfo.mTotalBytes == 0) {
+                // if Max and progress both equal 0, the progress display 100%.
+                // Below is to fix it.
+                mProgressTransfer.setMax(100);
+            } else {
+                mProgressTransfer.setMax(mTransInfo.mTotalBytes);
+            }
+
+            mProgressTransfer.setProgress(mTransInfo.mCurrentBytes);
         } else {
-            mProgressTransfer.setMax(mTransInfo.mTotalBytes);
+            /* No point in showing progress when we don't know the size. */
+            mProgressTransfer.setIndeterminate(true);
+            mProgressTransfer.setMax(100);
+            mProgressTransfer.setProgress(100);
         }
 
-        mProgressTransfer.setProgress(mTransInfo.mCurrentBytes);
-
-        mPercentView.setText(BluetoothOppUtility.formatProgressText(mTransInfo.mTotalBytes,
-                mTransInfo.mCurrentBytes));
+        mPercentView.setText(BluetoothOppUtility.formatProgressText(this,
+                mTransInfo.mTotalBytes, mTransInfo.mCurrentBytes));
 
         // Handle the case when DIALOG_RECEIVE_ONGOING evolve to
         // DIALOG_RECEIVE_COMPLETE_SUCCESS/DIALOG_RECEIVE_COMPLETE_FAIL
