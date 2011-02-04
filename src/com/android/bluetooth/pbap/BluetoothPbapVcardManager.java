@@ -50,6 +50,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.bluetooth.R;
+import com.android.bluetooth.pbap.BluetoothPbapObexServer.ContactList;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -196,9 +197,13 @@ public class BluetoothPbapVcardManager {
         return list;
     }
 
-    public final ArrayList<String> getPhonebookNameList(final int orderByWhat) {
-        ArrayList<String> nameList = new ArrayList<String>();
-        nameList.add(BluetoothPbapService.getLocalPhoneName());
+    public final ArrayList<ContactList>
+            getPhonebookContacts(final int orderByWhat) {
+        final ArrayList<ContactList> nameList = new ArrayList<ContactList>();
+
+        ContactList lContact = new ContactList(BluetoothPbapService.getLocalPhoneName(), 0);
+        if (V) Log.v(TAG, "added contact: " + lContact.toString());
+        nameList.add(lContact);
 
         final Uri myUri = Contacts.CONTENT_URI;
         Cursor contactCursor = null;
@@ -219,7 +224,10 @@ public class BluetoothPbapVcardManager {
                     if (TextUtils.isEmpty(name)) {
                         name = mContext.getString(android.R.string.unknownName);
                     }
-                    nameList.add(name);
+                    lContact = new ContactList(name,
+                        contactCursor.getLong(CONTACTS_ID_COLUMN_INDEX));
+                    if (V) Log.v(TAG, "added contact: " + lContact.toString());
+                    nameList.add(lContact);
                 }
             }
         } finally {
@@ -230,8 +238,10 @@ public class BluetoothPbapVcardManager {
         return nameList;
     }
 
-    public final ArrayList<String> getContactNamesByNumber(final String phoneNumber) {
-        ArrayList<String> nameList = new ArrayList<String>();
+    public final ArrayList<ContactList>
+            getContactsByNumber(final String phoneNumber) {
+        ArrayList<ContactList> nameList = new ArrayList<ContactList>();
+        ContactList lContact;
 
         Cursor contactCursor = null;
         final Uri uri = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI,
@@ -245,12 +255,16 @@ public class BluetoothPbapVcardManager {
                 for (contactCursor.moveToFirst(); !contactCursor.isAfterLast(); contactCursor
                         .moveToNext()) {
                     String name = contactCursor.getString(CONTACTS_NAME_COLUMN_INDEX);
-                    long id = contactCursor.getLong(CONTACTS_ID_COLUMN_INDEX);
                     if (TextUtils.isEmpty(name)) {
                         name = mContext.getString(android.R.string.unknownName);
                     }
-                    if (V) Log.v(TAG, "got name " + name + " by number " + phoneNumber + " @" + id);
-                    nameList.add(name);
+                    lContact = new ContactList(name,
+                        contactCursor.getLong(CONTACTS_ID_COLUMN_INDEX));
+                    if (V) {
+                        Log.v(TAG, "got contact: " + lContact.toString() + " by number " +
+                                phoneNumber);
+                    }
+                    nameList.add(lContact);
                 }
             }
         } finally {
