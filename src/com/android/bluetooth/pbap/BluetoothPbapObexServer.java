@@ -588,31 +588,65 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
         return pushBytes(op, result.toString());
     }
 
+    final static class ListContact {
+        private final String mName;
+        private final long mId;
+
+        public ListContact(final String name, final long id) {
+            mName = name == null ? "" : name.trim();
+            mId = id;
+        }
+
+        public String getName() {
+            return mName;
+        }
+
+        public long getId() {
+            return mId;
+        }
+
+        public boolean matches(final ListContact lc) {
+            if (lc == null) {
+                return false;
+            }
+            return mName.startsWith(lc.getName()) && mId == lc.getId();
+        }
+
+        public boolean matches(final String name) {
+            return name == null ? false : mName.startsWith(name.trim());
+        }
+
+        @Override
+        public String toString() {
+            return "name=" + mName + ", mId=" + mId;
+        }
+    }
+
     private int createList(final int maxListCount, final int listStartOffset,
             final String searchValue, StringBuilder result, String type) {
         int itemsFound = 0;
-        ArrayList<String> nameList = mVcardManager.getPhonebookNameList(mOrderBy);
-        final int requestSize = nameList.size() >= maxListCount ? maxListCount : nameList.size();
-        final int listSize = nameList.size();
-        String compareValue = "", currentValue;
+        ArrayList<ListContact> contacts = mVcardManager.getPhonebookContacts(mOrderBy);
+        final int listSize = contacts.size();
+        final int requestSize = listSize >= maxListCount ? maxListCount : listSize;
 
         if (D) Log.d(TAG, "search by " + type + ", requestSize=" + requestSize + " offset="
                     + listStartOffset + " searchValue=" + searchValue);
 
         if (type.equals("number")) {
             // query the number, to get the names
-            ArrayList<String> names = mVcardManager.getContactNamesByNumber(searchValue);
-            for (int i = 0; i < names.size(); i++) {
-                compareValue = names.get(i).trim();
-                if (D) Log.d(TAG, "compareValue=" + compareValue);
+            ArrayList<ListContact> compareContacts =
+                mVcardManager.getContactsByNumber(searchValue);
+            for (int i = 0; i < compareContacts.size(); i++) {
+                ListContact compareContact = compareContacts.get(i);
+                if (D) Log.d(TAG, "compareContact: " + compareContact.toString());
                 for (int pos = listStartOffset; pos < listSize &&
                         itemsFound < requestSize; pos++) {
-                    currentValue = nameList.get(pos);
-                    if (D) Log.d(TAG, "currentValue=" + currentValue);
-                    if (currentValue.startsWith(compareValue)) {
+                    ListContact currentContact = contacts.get(pos);
+                    if (D) Log.d(TAG, "currentContact: " + currentContact.toString());
+                    if (currentContact.matches(compareContact)) {
                         itemsFound++;
                         result.append("<card handle=\"" + pos + ".vcf\" name=\""
-                                + currentValue + "\"" + "/>");
+                                + currentContact.getName() + "\"" + "/>");
                     }
                 }
                 if (itemsFound >= requestSize) {
@@ -620,17 +654,14 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
                 }
             }
         } else {
-            if (searchValue != null) {
-                compareValue = searchValue.trim();
-            }
             for (int pos = listStartOffset; pos < listSize &&
                     itemsFound < requestSize; pos++) {
-                currentValue = nameList.get(pos);
-                if (D) Log.d(TAG, "currentValue=" + currentValue);
-                if (searchValue == null || currentValue.startsWith(compareValue)) {
+                ListContact currentContact = contacts.get(pos);
+                if (D) Log.d(TAG, "currentContact: " + currentContact.toString());
+                if (currentContact.matches(searchValue)) {
                     itemsFound++;
                     result.append("<card handle=\"" + pos + ".vcf\" name=\""
-                            + currentValue + "\"" + "/>");
+                            + currentContact.getName() + "\"" + "/>");
                 }
             }
         }
