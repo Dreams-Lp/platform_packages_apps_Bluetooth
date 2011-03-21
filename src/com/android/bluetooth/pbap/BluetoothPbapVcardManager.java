@@ -68,8 +68,6 @@ public class BluetoothPbapVcardManager {
 
     private Context mContext;
 
-    private StringBuilder mVcardResults = null;
-
     static final String[] PHONES_PROJECTION = new String[] {
             Data._ID, // 0
             CommonDataKinds.Phone.TYPE, // 1
@@ -510,6 +508,8 @@ public class BluetoothPbapVcardManager {
 
         private String phoneOwnVCard = null;
 
+        private StringBuilder mVcardResults = null;
+
         public HandlerForStringBuffer(Operation op, String ownerVCard) {
             operation = op;
             maxPacketSize = operation.getMaxPacketSize();
@@ -522,64 +522,27 @@ public class BluetoothPbapVcardManager {
         }
 
         public boolean onInit(Context context) {
-            try {
-                outputStream = operation.openOutputStream();
-                mVcardResults = new StringBuilder();
-                if (phoneOwnVCard != null) {
-                    mVcardResults.append(phoneOwnVCard);
-                }
-            } catch (IOException e) {
-                Log.e(TAG, "open outputstrem failed" + e.toString());
-                return false;
+            mVcardResults = new StringBuilder();
+            if (phoneOwnVCard != null) {
+                mVcardResults.append(phoneOwnVCard);
             }
-            if (V) Log.v(TAG, "openOutputStream() ok.");
             return true;
         }
 
         public boolean onEntryCreated(String vcard) {
-            int vcardLen = vcard.length();
-            if (V) Log.v(TAG, "The length of this vcard is: " + vcardLen);
-
             mVcardResults.append(vcard);
-            int vcardByteLen = mVcardResults.toString().getBytes().length;
-            if (V) Log.v(TAG, "The byte length of this vcardResults is: " + vcardByteLen);
-
-            if (vcardByteLen >= maxPacketSize) {
-                long timestamp = 0;
-                int position = 0;
-
-                // Need while loop to handle the big vcard case
-                while (!BluetoothPbapObexServer.sIsAborted
-                        && position < (vcardByteLen - maxPacketSize)) {
-                    if (V) timestamp = System.currentTimeMillis();
-
-                    String subStr = mVcardResults.toString().substring(position,
-                            position + maxPacketSize);
-                    try {
-                        outputStream.write(subStr.getBytes(), 0, maxPacketSize);
-                    } catch (IOException e) {
-                        Log.e(TAG, "write outputstrem failed" + e.toString());
-                        return false;
-                    }
-                    if (V) Log.v(TAG, "Sending vcard String " + maxPacketSize + " bytes took "
-                            + (System.currentTimeMillis() - timestamp) + " ms");
-
-                    position += maxPacketSize;
-                }
-                mVcardResults.delete(0, position);
-            }
             return true;
         }
 
         public void onTerminate() {
-            // Send out last packet
-            byte[] lastBytes = mVcardResults.toString().getBytes();
+            // Send out packets
             try {
-                outputStream.write(lastBytes, 0, lastBytes.length);
+                outputStream = operation.openOutputStream();
+                outputStream.write(mVcardResults.toString().getBytes());
+                if (V) Log.v(TAG, "Send Data complete!");
             } catch (IOException e) {
                 Log.e(TAG, "write outputstrem failed" + e.toString());
             }
-            if (V) Log.v(TAG, "Last packet sent out, sending process complete!");
 
             if (!BluetoothPbapObexServer.closeStream(outputStream, operation)) {
                 if (V) Log.v(TAG, "CloseStream failed!");
