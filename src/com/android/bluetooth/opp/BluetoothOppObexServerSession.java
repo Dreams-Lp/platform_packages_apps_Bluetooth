@@ -454,11 +454,21 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
             bos = new BufferedOutputStream(fileInfo.mOutputStream, 0x10000);
         }
 
+        long startTimeStamp = System.currentTimeMillis();
+
         if (!error) {
             int outputBufferSize = op.getMaxPacketSize();
             byte[] b = new byte[outputBufferSize];
             int readLength = 0;
             long timestamp = 0;
+
+            /* Instantiate content resolver update thread */
+            BluetoothOppObexSessionProgress bluetoothOppObexSessionProgress = new BluetoothOppObexSessionProgress(TAG,
+                contentUri, mContext, fileInfo.mLength);
+
+            /* Start content resolver update thread, it will wait for the next updateAvailable call */
+            bluetoothOppObexSessionProgress.start();
+
             try {
                 while ((!mInterrupted) && (position != fileInfo.mLength)) {
 
@@ -482,7 +492,12 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
 
                     ContentValues updateValues = new ContentValues();
                     updateValues.put(BluetoothShare.CURRENT_BYTES, position);
-                    mContext.getContentResolver().update(contentUri, updateValues, null, null);
+
+                    /* Give the position update to content resolver thread.
+                     * It will handle the update to the data table as a low priority
+                     * without harming OPP performance
+                     */
+                    bluetoothOppObexSessionProgress.updateAvailable(updateValues);
                 }
             } catch (IOException e1) {
                 Log.e(TAG, "Error when receiving file");
@@ -494,17 +509,21 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
                 }
                 error = true;
             }
+
+            /* Exit content resolver update thread */
+            bluetoothOppObexSessionProgress.exit();
         }
 
         if (mInterrupted) {
-            if (D) Log.d(TAG, "receiving file interrupted by user.");
+            Log.i(TAG, "receiving file interrupted by user.");
             status = BluetoothShare.STATUS_CANCELED;
         } else {
             if (position == fileInfo.mLength) {
-                if (D) Log.d(TAG, "Receiving file completed for " + fileInfo.mFileName);
+                Log.i(TAG, "Receiving file completed for " + fileInfo.mFileName + " at "
+                    + fileInfo.mLength / (System.currentTimeMillis() - startTimeStamp) + " kB/s");
                 status = BluetoothShare.STATUS_SUCCESS;
             } else {
-                if (D) Log.d(TAG, "Reading file failed at " + position + " of " + fileInfo.mLength);
+                Log.i(TAG, "Reading file failed at " + position + " of " + fileInfo.mLength);
                 if (status == -1) {
                     status = BluetoothShare.STATUS_UNKNOWN_ERROR;
                 }

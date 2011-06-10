@@ -442,6 +442,15 @@ public class BluetoothOppObexClientSession implements BluetoothOppObexSession {
                         }
                     }
 
+                    /* Instantiate content resolver update thread */
+                    BluetoothOppObexSessionProgress bluetoothOppObexSessionProgress = new BluetoothOppObexSessionProgress(TAG,
+                        contentUri, mContext1, fileInfo.mLength);
+
+                    /* Start content resolver update thread, it will wait for the next updateAvailable call */
+                    bluetoothOppObexSessionProgress.start();
+
+                    long startTimeStamp = System.currentTimeMillis();
+
                     while (!mInterrupted && okToProceed && (position != fileInfo.mLength)) {
                         {
                             if (V) timestamp = System.currentTimeMillis();
@@ -465,11 +474,17 @@ public class BluetoothOppObexClientSession implements BluetoothOppObexSession {
                                 }
                                 updateValues = new ContentValues();
                                 updateValues.put(BluetoothShare.CURRENT_BYTES, position);
-                                mContext1.getContentResolver().update(contentUri, updateValues,
-                                        null, null);
+
+                                /* Give the position update to content resolver thread.
+                                 * It will handle the update to the data table as a low priority
+                                 * without harming OPP performance
+                                 */
+                                bluetoothOppObexSessionProgress.updateAvailable(updateValues);
                             }
                         }
                     }
+                    /* Exit content resolver update thread */
+                    bluetoothOppObexSessionProgress.exit();
 
                     if (responseCode == ResponseCodes.OBEX_HTTP_FORBIDDEN
                             || responseCode == ResponseCodes.OBEX_HTTP_NOT_ACCEPTABLE) {
@@ -480,8 +495,8 @@ public class BluetoothOppObexClientSession implements BluetoothOppObexSession {
                         Log.i(TAG, "Remote reject file type " + fileInfo.mMimetype);
                         status = BluetoothShare.STATUS_NOT_ACCEPTABLE;
                     } else if (!mInterrupted && position == fileInfo.mLength) {
-                        Log.i(TAG, "SendFile finished send out file " + fileInfo.mFileName
-                                + " length " + fileInfo.mLength);
+                        Log.i(TAG, "SendFile finished send out file " + fileInfo.mFileName + " length " + fileInfo.mLength + " at "
+                            + fileInfo.mLength / (System.currentTimeMillis() - startTimeStamp) + " kB/s");
                         outputStream.close();
                     } else {
                         error = true;
