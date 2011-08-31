@@ -223,9 +223,16 @@ public class BluetoothOppReceiver extends BroadcastReceiver {
 
             String toastMsg = null;
             BluetoothOppTransferInfo transInfo = new BluetoothOppTransferInfo();
-            transInfo = BluetoothOppUtility.queryRecord(context, intent.getData());
-            if (transInfo == null) {
-                Log.e(TAG, "Error: Can not get data from db");
+            try {
+                transInfo = BluetoothOppUtility.queryRecord(context, intent.getData());
+                if (transInfo == null) {
+                    Log.e(TAG, "Error: Can not get data from db");
+                    return;
+                }
+            } catch (IllegalStateException e) {
+                toastMsg = context.getString(R.string.notification_sent_fail,
+                                             transInfo.mFileName);
+                Log.e(TAG, "Error: Excetpion in URL management");
                 return;
             }
 

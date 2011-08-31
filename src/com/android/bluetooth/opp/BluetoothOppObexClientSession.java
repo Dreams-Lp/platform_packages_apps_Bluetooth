@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (c) 2008-2009, Motorola, Inc.
  *
  * All rights reserved.
@@ -497,6 +497,8 @@ public class BluetoothOppObexClientSession implements BluetoothOppObexSession {
             } catch (NullPointerException e) {
                 handleSendException(e.toString());
             } catch (IndexOutOfBoundsException e) {
+                handleSendException(e.toString());
+            } catch (IllegalStateException e) {
                 handleSendException(e.toString());
             } finally {
                 try {
