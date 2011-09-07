@@ -42,6 +42,7 @@ import android.content.UriMatcher;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteQueryBuilder;
+import android.database.sqlite.SQLiteDiskIOException;
 import android.net.Uri;
 import android.provider.LiveFolders;
 import android.util.Log;
@@ -433,7 +434,7 @@ public final class BluetoothOppProvider extends ContentProvider {
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
         SQLiteDatabase db = mOpenHelper.getWritableDatabase();
-        int count;
+        int count = 0;
         int match = sURIMatcher.match(uri);
         switch (match) {
             case SHARES:
@@ -453,8 +454,11 @@ public final class BluetoothOppProvider extends ContentProvider {
                     long rowId = Long.parseLong(segment);
                     myWhere += " ( " + BluetoothShare._ID + " = " + rowId + " ) ";
                 }
-
-                count = db.delete(DB_TABLE, myWhere, selectionArgs);
+                try {
+                    count = db.delete(DB_TABLE, myWhere, selectionArgs);
+                } catch (SQLiteDiskIOException e) {
+                    Log.w(TAG, "Exception while deleting - unknown/invalid URI", e);
+                }
                 break;
             }
             default: {
