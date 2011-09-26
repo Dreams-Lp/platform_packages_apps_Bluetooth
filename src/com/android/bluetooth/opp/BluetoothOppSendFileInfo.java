@@ -108,10 +108,19 @@ public class BluetoothOppSendFileInfo {
         // This will allow more 3rd party applications to share files via
         // bluetooth
         if (scheme.equals("content")) {
-            contentType = contentResolver.getType(u);
-            Cursor metadataCursor = contentResolver.query(u, new String[] {
-                    OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE
-            }, null, null, null);
+            Cursor metadataCursor = null;
+            try {
+                contentType = contentResolver.getType(u);
+                metadataCursor = contentResolver.query(u, new String[] {
+                        OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE
+                }, null, null, null);
+            }
+            catch (IllegalStateException e) {
+               // Manages cases where file was deleted in the mean time
+               Log.e(TAG, "Cannot access file, IllegalStateException : ", e);
+               return new BluetoothOppSendFileInfo(null, null, 0, null,
+                        BluetoothShare.STATUS_FILE_ERROR, dest);
+            }
             if (metadataCursor != null) {
                 try {
                     if (metadataCursor.moveToFirst()) {
