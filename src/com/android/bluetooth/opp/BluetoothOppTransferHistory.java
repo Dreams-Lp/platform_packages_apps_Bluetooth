@@ -37,10 +37,12 @@ import com.android.bluetooth.R;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.ContextMenu;
@@ -67,6 +69,8 @@ public class BluetoothOppTransferHistory extends Activity implements
     private ListView mListView;
 
     private Cursor mTransferCursor;
+
+    private Cursor mClearCursor;
 
     private BluetoothOppTransferAdapter mTransferAdapter;
 
@@ -117,6 +121,14 @@ public class BluetoothOppTransferHistory extends Activity implements
         final String sortOrder = BluetoothShare.TIMESTAMP + " DESC";
 
         mTransferCursor = managedQuery(BluetoothShare.CONTENT_URI, new String[] {
+                "_id", BluetoothShare.FILENAME_HINT, BluetoothShare.STATUS,
+                BluetoothShare.TOTAL_BYTES, BluetoothShare._DATA, BluetoothShare.TIMESTAMP,
+                BluetoothShare.VISIBILITY, BluetoothShare.DESTINATION, BluetoothShare.DIRECTION
+        }, selection, sortOrder);
+
+        // Cursor used during the clearing operation which is done in an async task
+        // It has to be a different object than mTransferCursor to prevent conflicts
+        mClearCursor = managedQuery(BluetoothShare.CONTENT_URI, new String[] {
                 "_id", BluetoothShare.FILENAME_HINT, BluetoothShare.STATUS,
                 BluetoothShare.TOTAL_BYTES, BluetoothShare._DATA, BluetoothShare.TIMESTAMP,
                 BluetoothShare.VISIBILITY, BluetoothShare.DESTINATION, BluetoothShare.DIRECTION
@@ -216,7 +228,7 @@ public class BluetoothOppTransferHistory extends Activity implements
                 R.string.transfer_clear_dlg_msg).setPositiveButton(android.R.string.ok,
                 new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int whichButton) {
-                        clearAllDownloads();
+                        new ClearAllDownloadsTask().execute();
                     }
                 }).setNegativeButton(android.R.string.cancel, null).show();
     }
@@ -242,16 +254,32 @@ public class BluetoothOppTransferHistory extends Activity implements
     /**
      * Clear all finished transfers, error and success transfer items.
      */
-    private void clearAllDownloads() {
-        if (mTransferCursor.moveToFirst()) {
-            while (!mTransferCursor.isAfterLast()) {
-                int sessionId = mTransferCursor.getInt(mIdColumnId);
-                Uri contentUri = Uri.parse(BluetoothShare.CONTENT_URI + "/" + sessionId);
-                BluetoothOppUtility.updateVisibilityToHidden(this, contentUri);
+    private class ClearAllDownloadsTask extends AsyncTask<Void, Void, Void> {
 
-                mTransferCursor.moveToNext();
+        @Override
+        protected Void doInBackground(Void... params) {
+
+            if (mClearCursor == null)
+                cancel(true);
+
+            if (mClearCursor.moveToFirst()) {
+
+                Context context = getApplicationContext();
+                try{
+                    while (!mClearCursor.isAfterLast()) {
+                        int sessionId = mClearCursor.getInt(mIdColumnId);
+                        Uri contentUri = Uri.parse(BluetoothShare.CONTENT_URI + "/" + sessionId);
+                        BluetoothOppUtility.updateVisibilityToHidden(context, contentUri);
+                        mClearCursor.moveToNext();
+                    }
+                } catch (Exception e){
+                    Log.e(TAG, "ClearAllDownloadsTask ended before finishing: " + e);
+                }
+                finally{
+                    updateNotificationWhenBtDisabled();
+                }
             }
-            updateNotificationWhenBtDisabled();
+            return null;
         }
     }
 
