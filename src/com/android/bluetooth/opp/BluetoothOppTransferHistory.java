@@ -275,9 +275,15 @@ public class BluetoothOppTransferHistory extends Activity implements
     private void openCompleteTransfer() {
         int sessionId = mTransferCursor.getInt(mIdColumnId);
         Uri contentUri = Uri.parse(BluetoothShare.CONTENT_URI + "/" + sessionId);
-        BluetoothOppTransferInfo transInfo = BluetoothOppUtility.queryRecord(this, contentUri);
-        if (transInfo == null) {
-            Log.e(TAG, "Error: Can not get data from db");
+        BluetoothOppTransferInfo transInfo = null;
+        try {
+            transInfo = BluetoothOppUtility.queryRecord(this, contentUri);
+            if (transInfo == null) {
+                Log.e(TAG, "Error: Can not get data from db");
+                return;
+            }
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "Error: Exception URL not found");
             return;
         }
         if (transInfo.mDirection == BluetoothShare.DIRECTION_INBOUND
