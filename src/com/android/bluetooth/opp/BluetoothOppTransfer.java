@@ -184,7 +184,12 @@ public class BluetoothOppTransfer implements BluetoothOppBatch.BluetoothOppBatch
                     if (V) Log.v(TAG, "Transfer receive RFCOMM_CONNECTED msg");
                     mConnectThread = null;
                     mTransport = (ObexTransport)msg.obj;
-                    startObexSession();
+
+                    try {
+                        startObexSession();
+                    } catch (IllegalArgumentException e) {
+                        Log.e(TAG, "no pending share");
+                    }
 
                     break;
                 case BluetoothOppObexSession.MSG_SHARE_COMPLETE:
