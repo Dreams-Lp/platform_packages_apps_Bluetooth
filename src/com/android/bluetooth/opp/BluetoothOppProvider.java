@@ -374,14 +374,17 @@ public final class BluetoothOppProvider extends ContentProvider {
             Log.v(TAG, sb.toString());
         }
 
-        Cursor ret = qb.query(db, projection, selection, selectionArgs, null, null, sortOrder);
+        Cursor ret = null;
+        if (db != null) {
+            ret = qb.query(db, projection, selection, selectionArgs, null, null, sortOrder);
 
-        if (ret != null) {
-            ret.setNotificationUri(getContext().getContentResolver(), uri);
-            if (V) Log.v(TAG, "created cursor " + ret + " on behalf of ");// +
-        } else {
-            if (D) Log.d(TAG, "query failed in downloads database");
-            }
+            if (ret != null) {
+                ret.setNotificationUri(getContext().getContentResolver(), uri);
+                if (V) Log.v(TAG, "created cursor " + ret + " on behalf of ");// +
+            } else {
+                if (D) Log.d(TAG, "query failed in downloads database");
+                }
+        }
 
         return ret;
     }
