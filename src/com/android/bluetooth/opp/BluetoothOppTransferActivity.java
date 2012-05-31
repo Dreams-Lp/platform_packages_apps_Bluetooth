@@ -393,7 +393,11 @@ public class BluetoothOppTransferActivity extends AlertActivity implements
             case DialogInterface.BUTTON_NEGATIVE:
                 if (mWhichDialog == DIALOG_RECEIVE_ONGOING || mWhichDialog == DIALOG_SEND_ONGOING) {
                     // "Stop" button
-                    this.getContentResolver().delete(mUri, null, null);
+                    new Thread (new Runnable() {
+                        public void run() {
+                            getContentResolver().delete(mUri, null, null);
+                        }
+                    }).start();
 
                     String msg = "";
                     if (mWhichDialog == DIALOG_RECEIVE_ONGOING) {
