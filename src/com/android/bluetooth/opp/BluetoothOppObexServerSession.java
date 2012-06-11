@@ -93,7 +93,7 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
 
     private WakeLock mWakeLock;
 
-    private WakeLock mPartialWakeLock;
+    private WakeLock mScreenDimWakeLock;
 
     boolean mTimeoutMsgSent = false;
 
@@ -103,7 +103,7 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
         PowerManager pm = (PowerManager)mContext.getSystemService(Context.POWER_SERVICE);
         mWakeLock = pm.newWakeLock(PowerManager.FULL_WAKE_LOCK | PowerManager.ACQUIRE_CAUSES_WAKEUP
                 | PowerManager.ON_AFTER_RELEASE, TAG);
-        mPartialWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+        mScreenDimWakeLock = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, TAG);
     }
 
     public void unblock() {
@@ -293,7 +293,7 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
 
         synchronized (this) {
             if (mWakeLock.isHeld()) {
-                mPartialWakeLock.acquire();
+                mScreenDimWakeLock.acquire();
                 mWakeLock.release();
             }
             mServerBlocking = true;
@@ -550,8 +550,8 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
         if (mWakeLock.isHeld()) {
             mWakeLock.release();
         }
-        if (mPartialWakeLock.isHeld()) {
-            mPartialWakeLock.release();
+        if (mScreenDimWakeLock.isHeld()) {
+            mScreenDimWakeLock.release();
         }
     }
 
