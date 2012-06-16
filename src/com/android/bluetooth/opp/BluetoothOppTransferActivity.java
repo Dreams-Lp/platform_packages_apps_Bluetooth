@@ -458,7 +458,7 @@ public class BluetoothOppTransferActivity extends AlertActivity implements
             mAlert.getButton(DialogInterface.BUTTON_POSITIVE).setText(
                     getString(R.string.download_succ_ok));
         } else if (mWhichDialog == DIALOG_RECEIVE_COMPLETE_FAIL) {
-            mAlert.setIcon(android.R.drawable.ic_dialog_alert);
+            mAlert.setIconAttribute(android.R.attr.alertDialogIcon);
             mAlert.getButton(DialogInterface.BUTTON_NEGATIVE).setVisibility(View.GONE);
             mAlert.getButton(DialogInterface.BUTTON_POSITIVE).setText(
                     getString(R.string.download_fail_ok));
@@ -467,7 +467,7 @@ public class BluetoothOppTransferActivity extends AlertActivity implements
             mAlert.getButton(DialogInterface.BUTTON_POSITIVE).setText(
                     getString(R.string.upload_succ_ok));
         } else if (mWhichDialog == DIALOG_SEND_COMPLETE_FAIL) {
-            mAlert.setIcon(android.R.drawable.ic_dialog_alert);
+            mAlert.setIconAttribute(android.R.attr.alertDialogIcon);
             mAlert.getButton(DialogInterface.BUTTON_POSITIVE).setText(
                     getString(R.string.upload_fail_ok));
             mAlert.getButton(DialogInterface.BUTTON_NEGATIVE).setText(
