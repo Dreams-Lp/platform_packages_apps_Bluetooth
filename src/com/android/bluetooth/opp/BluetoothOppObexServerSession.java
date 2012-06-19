@@ -93,6 +93,8 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
 
     private WakeLock mWakeLock;
 
+    private long mTimeoutWakeLock = 60000;
+
     private WakeLock mPartialWakeLock;
 
     boolean mTimeoutMsgSent = false;
@@ -116,7 +118,8 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
      */
     public void preStart() {
         if (D) Log.d(TAG, "acquire full WakeLock");
-        mWakeLock.acquire();
+	/* Hold the FULL_WAKE_LOCK so that display is ON for 60 seconds */
+        mWakeLock.acquire(mTimeoutWakeLock);
         try {
             if (D) Log.d(TAG, "Create ServerSession with transport " + mTransport.toString());
             mSession = new ServerSession(mTransport, this, null);
@@ -292,10 +295,7 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
 
 
         synchronized (this) {
-            if (mWakeLock.isHeld()) {
-                mPartialWakeLock.acquire();
-                mWakeLock.release();
-            }
+            mPartialWakeLock.acquire();
             mServerBlocking = true;
             try {
 
