@@ -210,6 +210,9 @@ public class Constants {
         "application/msword",
         "application/vnd.ms-powerpoint",
         "application/pdf",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     };
 
     /**
