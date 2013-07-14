@@ -185,6 +185,13 @@ final class AdapterState extends StateMachine {
                    if (DBG) Log.d(TAG,"CURRENT_STATE=ON, MESSAGE = USER_TURN_ON");
                    Log.i(TAG,"Bluetooth already ON, ignoring USER_TURN_ON");
                    break;
+               case DISABLED:
+                   if (DBG) Log.d(TAG,"CURRENT_STATE=ON, MESSAGE = DISABLED");
+                   Log.i(TAG,"Unexpected message: DISABLED, defer the message, and transmit to PendingCommandState!");
+                   mPendingCommandState.setTurningOff(true);
+                   deferMessage(msg);
+                   transitionTo(mPendingCommandState);
+                   break;
                default:
                    if (DBG) Log.d(TAG,"ERROR: UNEXPECTED MESSAGE: CURRENT_STATE=ON, MESSAGE = " + msg.what );
                    return false;
