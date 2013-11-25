@@ -604,7 +604,7 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
                         itemsFound < requestSize; pos++) {
                     currentValue = nameList.get(pos);
                     if (D) Log.d(TAG, "currentValue=" + currentValue);
-                    if (currentValue.startsWith(compareValue)) {
+                    if (currentValue.equals(compareValue)) {
                         itemsFound++;
                         writeVCardEntry(pos, currentValue,result);
                     }
