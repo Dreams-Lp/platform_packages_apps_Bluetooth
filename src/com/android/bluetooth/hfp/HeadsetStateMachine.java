@@ -133,6 +133,7 @@ final class HeadsetStateMachine extends StateMachine {
     private static final int BRSF_HF_CODEC_NEGOTIATION = 1 << 7;
 
     private int mLocalBrsf = 0;
+    private int mRemoteBrsf = 0;
 
     private static final ParcelUuid[] HEADSET_UUIDS = {
         BluetoothUuid.HSP,
@@ -800,6 +801,8 @@ final class HeadsetStateMachine extends StateMachine {
                     }
                     break;
                 case HeadsetHalConstants.CONNECTION_STATE_SLC_CONNECTED:
+                    mRemoteBrsf = getRemoteFeaturesNative();
+                    Log.e(TAG, "Remote Brsf: " + mRemoteBrsf);
                     processSlcConnected();
                     break;
               default:
@@ -1136,6 +1139,12 @@ final class HeadsetStateMachine extends StateMachine {
             }
         }
         return false;
+    }
+
+    public boolean isBluetoothVoiceDialingEnabled() {
+        Log.d(TAG, "isBluetoothVoiceDialingEnabled mRemoteBrsf: " + mRemoteBrsf +
+                    "supported: " + (mRemoteBrsf & BRSF_HF_VOICE_REG_ACT));
+        return ((mRemoteBrsf & BRSF_HF_VOICE_REG_ACT) != 0x0) ? true : false;
     }
 
     int getAudioState(BluetoothDevice device) {
@@ -2120,4 +2129,5 @@ final class HeadsetStateMachine extends StateMachine {
 
     private native boolean phoneStateChangeNative(int numActive, int numHeld, int callState,
                                                   String number, int type);
+    private native int getRemoteFeaturesNative();
 }
