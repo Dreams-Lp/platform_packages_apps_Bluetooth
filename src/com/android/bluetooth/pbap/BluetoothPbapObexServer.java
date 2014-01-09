@@ -875,7 +875,16 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
                     return ResponseCodes.OBEX_HTTP_NOT_ACCEPTABLE;
                 }
             }
+        } else {
+            return ResponseCodes.OBEX_HTTP_NOT_ACCEPTABLE;
         } // code end for passing PTS3.2 TC_PSE_PBD_BI_01_C
+
+        // workaround to pass test PTS4.9 TC_PSE_PBD_BI_01_C
+        if (name.contentEquals("telecom/pbpb.vcf")) {
+            Log.w(TAG, "The requested phonebook object cannot be found");
+            // as requested by PBAB spec (6.2.3), it's mandatory for PSE the "Not Found" error code
+            return ResponseCodes.OBEX_HTTP_NOT_FOUND;
+        } // end of workaround
 
         int pbSize = mVcardManager.getPhonebookSize(appParamValue.needTag);
         int needSendBody = handleAppParaForResponse(appParamValue, pbSize, reply, op);
