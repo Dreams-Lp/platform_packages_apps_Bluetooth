@@ -421,6 +421,17 @@ public class PanService extends ProfileService {
             prevState = panDevice.mState;
             ifaceAddr = panDevice.mIfaceAddr;
         }
+
+        // Avoid race condition that gets this class stuck in STATE_DISCONNECTED. While we
+        // are in STATE_CONNECTING, if a BluetoothPan#disconnect call comes in, we will enter
+        // STATE_DISCONNECTED. The original connect attempt may then complete and put us in
+        // STATE_DISCONNECTING which we will never exit. All future calls to
+        // BluetoothPan#connect will fail until the caller explicitly calls BluetoothPan#disconnect.
+        if (prevState == BluetoothProfile.STATE_DISCONNECTED && state == BluetoothProfile.STATE_DISCONNECTING) {
+            Log.d(TAG, "Ignoring state change from " + prevState + " to " + state);
+            return;
+        }
+
         Log.d(TAG, "handlePanDeviceStateChange preState: " + prevState + " state: " + state);
         if (prevState == state) return;
         if (remote_role == BluetoothPan.LOCAL_PANU_ROLE) {
