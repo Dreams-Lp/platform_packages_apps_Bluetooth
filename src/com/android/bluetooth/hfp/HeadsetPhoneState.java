@@ -21,6 +21,9 @@ import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
+
+import com.android.internal.telephony.PhoneConstants;
+
 import android.util.Log;
 
 // Note:
@@ -73,16 +76,18 @@ class HeadsetPhoneState {
     }
 
     void listenForPhoneState(boolean start) {
+
         if (start) {
             if (!mListening) {
                 mTelephonyManager.listen(mPhoneStateListener,
                                          PhoneStateListener.LISTEN_SERVICE_STATE |
-                                         PhoneStateListener.LISTEN_SIGNAL_STRENGTHS);
+                                         PhoneStateListener.LISTEN_SIGNAL_STRENGTHS,
+                                         PhoneConstants.SIM_ID_1);
                 mListening = true;
             }
         } else {
             if (mListening) {
-                mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE);
+                mTelephonyManager.listen(mPhoneStateListener, PhoneStateListener.LISTEN_NONE,PhoneConstants.SIM_ID_1);
                 mListening = false;
             }
         }
