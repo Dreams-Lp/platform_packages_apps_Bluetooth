@@ -21,6 +21,10 @@ import android.telephony.PhoneStateListener;
 import android.telephony.ServiceState;
 import android.telephony.SignalStrength;
 import android.telephony.TelephonyManager;
+import android.telephony.SubscriptionManager;
+
+import com.android.internal.telephony.PhoneConstants;
+
 import android.util.Log;
 
 // Note:
@@ -61,9 +65,16 @@ class HeadsetPhoneState {
 
     private boolean mListening = false;
 
+    private HfpPhoneStateListener mPhoneStateListener = null;
+
     HeadsetPhoneState(Context context, HeadsetStateMachine stateMachine) {
         mStateMachine = stateMachine;
         mTelephonyManager = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+
+        long[] subs = SubscriptionManager.getSubId(PhoneConstants.SIM_ID_1);
+        if(subs != null){
+            mPhoneStateListener = HfpPhoneStateListener(subs[0]);
+        }
     }
 
     public void cleanup() {
@@ -73,6 +84,7 @@ class HeadsetPhoneState {
     }
 
     void listenForPhoneState(boolean start) {
+
         if (start) {
             if (!mListening) {
                 mTelephonyManager.listen(mPhoneStateListener,
@@ -171,7 +183,7 @@ class HeadsetPhoneState {
         }
     }
 
-    private PhoneStateListener mPhoneStateListener = new PhoneStateListener() {
+    class HfpPhoneStateListener extends PhoneStateListener {
         @Override
         public void onServiceStateChanged(ServiceState serviceState) {
             mServiceState = serviceState;
@@ -186,9 +198,7 @@ class HeadsetPhoneState {
         @Override
         public void onSignalStrengthsChanged(SignalStrength signalStrength) {
             int prevSignal = mSignal;
-            if (mService == HeadsetHalConstants.NETWORK_STATE_NOT_AVAILABLE)
-                mSignal = 0;
-            else if (signalStrength.isGsm()) {
+            if (signalStrength.isGsm()) {
                 mSignal = gsmAsuToSignal(signalStrength);
             } else {
                 mSignal = cdmaDbmEcioToSignal(signalStrength);
@@ -271,8 +281,7 @@ class HeadsetPhoneState {
             // TODO(): There is a bug open regarding what should be sent.
             return (cdmaIconLevel > evdoIconLevel) ?  cdmaIconLevel : evdoIconLevel;
         }
-    };
-
+    }
 }
 
 class HeadsetDeviceState {
