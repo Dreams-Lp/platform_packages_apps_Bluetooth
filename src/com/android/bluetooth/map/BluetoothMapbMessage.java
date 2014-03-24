@@ -614,7 +614,7 @@ public abstract class BluetoothMapbMessage {
                  * Since errata ???(bluetooth.org is down at the moment) introduced escaping of END:MSG
                  * in the actual message content, it is now safe to use the END:MSG tag as terminator,
                  * and simply ignore the length field.*/
-                byte[] rawData = reader.getDataBytes(bMsgLength - (line.getBytes().length + 2)); // 2 added to compensate for the removed \r\n
+                byte[] rawData = reader.getDataBytes(bMsgLength); // 2 added to compensate for the removed \r\n
                 String data;
                 try {
                     data = new String(rawData, "UTF-8");
