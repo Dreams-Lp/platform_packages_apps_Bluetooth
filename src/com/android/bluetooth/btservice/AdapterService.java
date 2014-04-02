@@ -1125,6 +1125,9 @@ public class AdapterService extends Service {
     }
 
      private void processConnectOtherProfiles (BluetoothDevice device, int firstProfileStatus){
+        int currentHsState = BluetoothProfile.STATE_DISCONNECTED;
+        int currentA2dpState = BluetoothProfile.STATE_DISCONNECTED;
+
         if (getState()!= BluetoothAdapter.STATE_ON){
             return;
         }
@@ -1136,6 +1139,19 @@ public class AdapterService extends Service {
         }
         List<BluetoothDevice> a2dpConnDevList= a2dpService.getConnectedDevices();
         List<BluetoothDevice> hfConnDevList= hsService.getConnectedDevices();
+
+        BluetoothDevice[] bondedDevList = getBondedDevices();
+        for (BluetoothDevice btDevice: bondedDevList) {
+            int a2dpState = a2dpService.getConnectionState(btDevice);
+            int hsState = hsService.getConnectionState(btDevice);
+
+            if ((a2dpState != BluetoothProfile.STATE_DISCONNECTED) &&
+                 (a2dpState != BluetoothProfile.STATE_DISCONNECTING))
+                currentA2dpState = a2dpState;
+            if ((hsState != BluetoothProfile.STATE_DISCONNECTED) &&
+                 (hsState != BluetoothProfile.STATE_DISCONNECTING))
+                currentHsState = hsState;
+        }
         // Check if the device is in disconnected state and if so return
         // We ned to connect other profile only if one of the profile is still in connected state
         // This is required to avoide a race condition in which profiles would
@@ -1146,11 +1162,13 @@ public class AdapterService extends Service {
             return;
         }
         if((hfConnDevList.isEmpty()) &&
-            (hsService.getPriority(device) >= BluetoothProfile.PRIORITY_ON)){
+            (hsService.getPriority(device) >= BluetoothProfile.PRIORITY_ON) &&
+             (currentHsState == BluetoothProfile.STATE_DISCONNECTED)) {
             hsService.connect(device);
         }
         else if((a2dpConnDevList.isEmpty()) &&
-            (a2dpService.getPriority(device) >= BluetoothProfile.PRIORITY_ON)){
+            (a2dpService.getPriority(device) >= BluetoothProfile.PRIORITY_ON) &&
+             (currentA2dpState == BluetoothProfile.STATE_DISCONNECTED)) {
             a2dpService.connect(device);
         }
     }
