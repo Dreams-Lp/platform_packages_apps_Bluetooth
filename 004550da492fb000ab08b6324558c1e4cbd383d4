@@ -1,0 +1,7 @@
+Verified+1: Deckard Autoverifier <deckard@android.com>
+Code-Review+2: Matthew Xie <mattx@google.com>
+Submitted-by: Matthew Xie <mattx@google.com>
+Submitted-at: Tue, 08 Apr 2014 06:45:30 +0000
+Reviewed-on: https://android-review.googlesource.com/84351
+Project: platform/packages/apps/Bluetooth
+Branch: refs/heads/master
