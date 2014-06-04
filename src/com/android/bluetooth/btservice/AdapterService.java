@@ -94,14 +94,14 @@ public class AdapterService extends Service {
 
     private static AdapterService sAdapterService;
     public static synchronized AdapterService getAdapterService(){
-        if (sAdapterService != null && !sAdapterService.mCleaningUp) {
+        if (sAdapterService != null && sAdapterService.isAvailable()) {
             if (DBG) Log.d(TAG, "getAdapterService(): returning " + sAdapterService);
             return sAdapterService;
         }
         if (DBG)  {
             if (sAdapterService == null) {
                 Log.d(TAG, "getAdapterService(): service not available");
-            } else if (sAdapterService.mCleaningUp) {
+            } else if (!sAdapterService.isAvailable()) {
                 Log.d(TAG,"getAdapterService(): service is cleaning up");
             }
         }
@@ -109,14 +109,14 @@ public class AdapterService extends Service {
     }
 
     private static synchronized void setAdapterService(AdapterService instance) {
-        if (instance != null && !instance.mCleaningUp) {
+        if (instance != null && instance.isAvailable()) {
             if (DBG) Log.d(TAG, "setAdapterService(): set to: " + sAdapterService);
             sAdapterService = instance;
         } else {
             if (DBG)  {
                 if (sAdapterService == null) {
                     Log.d(TAG, "setAdapterService(): service not available");
-                } else if (sAdapterService.mCleaningUp) {
+                } else if (!sAdapterService.isAvailable()) {
                     Log.d(TAG,"setAdapterService(): service is cleaning up");
                 }
             }
@@ -262,6 +262,13 @@ public class AdapterService extends Service {
         getAdapterPropertyNative(AbstractionLayer.BT_PROPERTY_BDADDR);
         getAdapterPropertyNative(AbstractionLayer.BT_PROPERTY_BDNAME);
 
+        mRemoteDevices = new RemoteDevices(this);
+        mAdapterProperties.init(mRemoteDevices);
+
+        if (DBG) {debugLog("onCreate(): Make Bond State Machine");}
+        mBondStateMachine = BondStateMachine.make(this, mAdapterProperties, mRemoteDevices);
+
+        mJniCallbacks.init(mBondStateMachine,mRemoteDevices);
     }
 
     @Override
@@ -286,13 +293,6 @@ public class AdapterService extends Service {
         for (int i=0; i < supportedProfileServices.length;i++) {
             mProfileServicesState.put(supportedProfileServices[i].getName(),BluetoothAdapter.STATE_OFF);
         }
-        mRemoteDevices = new RemoteDevices(this);
-        mAdapterProperties.init(mRemoteDevices);
-
-        if (DBG) {debugLog("processStart(): Make Bond State Machine");}
-        mBondStateMachine = BondStateMachine.make(this, mAdapterProperties, mRemoteDevices);
-
-        mJniCallbacks.init(mBondStateMachine,mRemoteDevices);
 
         //FIXME: Set static instance here???
         setAdapterService(this);
@@ -339,12 +339,14 @@ public class AdapterService extends Service {
 
     void cleanup () {
         if (DBG)debugLog("cleanup()");
-        if (mCleaningUp) {
-            Log.w(TAG,"*************service already starting to cleanup... Ignoring cleanup request.........");
-            return;
-        }
+        synchronized(this){
+            if (mCleaningUp) {
+                Log.w(TAG,"*************service already starting to cleanup... Ignoring cleanup request.........");
+                return;
+            }
 
-        mCleaningUp = true;
+            mCleaningUp = true;
+        }
 
         if (mAdapterStateMachine != null) {
             mAdapterStateMachine.doQuit();
@@ -459,7 +461,7 @@ public class AdapterService extends Service {
         }
     }
 
-    private boolean isAvailable() {
+    private synchronized boolean isAvailable() {
         return !mCleaningUp;
     }
 

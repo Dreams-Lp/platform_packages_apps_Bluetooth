@@ -92,6 +92,7 @@ final class BondStateMachine extends StateMachine {
         mAdapterService = null;
         mRemoteDevices = null;
         mAdapterProperties = null;
+        mAdapter = null;
     }
 
     private class StableState extends State {
