@@ -23,6 +23,7 @@
         android:description="@string/permdesc_handoverStatus"
         android:protectionLevel="signature" />
 
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_BLUETOOTH_SHARE" />
     <uses-permission android:name="android.permission.INTERNET" />
