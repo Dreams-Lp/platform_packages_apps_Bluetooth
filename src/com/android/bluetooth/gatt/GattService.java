@@ -1768,10 +1768,10 @@ public class GattService extends ProfileService {
                 availableSize -= FIELD_OVERHEAD_BYTES + FULL_UUID_BYTES;
             }
         }
-        if (mManufacturerCode > 0 && mManufacturerData != null) {
+        if (mManufacturerCode > 0 && mManufacturerData != null && mManufacturerData.length > 0) {
             availableSize -= (FIELD_OVERHEAD_BYTES + mManufacturerData.length);
         }
-        if (mServiceData != null) {
+        if (mServiceData != null && mServiceData.length > 0) {
             availableSize -= (FIELD_OVERHEAD_BYTES + mServiceData.length);
         }
         return availableSize;
