@@ -365,29 +365,34 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
             }
             if (D) Log.v(TAG, "onGet(): appParamValue.needTag=" + appParamValue.needTag);
         } else {
+            // Extract file name
+            String fileName = name;
+
+            if (name.contains("/")) {
+                fileName = name.substring(name.lastIndexOf("/") + 1);
+                fileName = fileName.substring(0, fileName.lastIndexOf('.'));
+            }
+
             // Not support SIM card currently
-            if (name.contains(SIM1.subSequence(0, SIM1.length()))) {
+            if (fileName.equals(SIM1.subSequence(0, SIM1.length()))) {
                 Log.w(TAG, "Not support access SIM card info!");
                 return ResponseCodes.OBEX_HTTP_NOT_ACCEPTABLE;
             }
 
-            // we have weak name checking here to provide better
-            // compatibility with other devices,although unique name such as
-            // "pb.vcf" is required by SIG spec.
-            if (name.contains(PB.subSequence(0, PB.length()))) {
+            if (fileName.equals(PB.subSequence(0, PB.length()))) {
                 appParamValue.needTag = ContentType.PHONEBOOK;
                 if (D) Log.v(TAG, "download phonebook request");
-            } else if (name.contains(ICH.subSequence(0, ICH.length()))) {
+            } else if (fileName.equals(ICH.subSequence(0, ICH.length()))) {
                 appParamValue.needTag = ContentType.INCOMING_CALL_HISTORY;
                 if (D) Log.v(TAG, "download incoming calls request");
-            } else if (name.contains(OCH.subSequence(0, OCH.length()))) {
+            } else if (fileName.equals(OCH.subSequence(0, OCH.length()))) {
                 appParamValue.needTag = ContentType.OUTGOING_CALL_HISTORY;
                 if (D) Log.v(TAG, "download outgoing calls request");
-            } else if (name.contains(MCH.subSequence(0, MCH.length()))) {
+            } else if (fileName.equals(MCH.subSequence(0, MCH.length()))) {
                 appParamValue.needTag = ContentType.MISSED_CALL_HISTORY;
                 mNeedNewMissedCallsNum = true;
                 if (D) Log.v(TAG, "download missed calls request");
-            } else if (name.contains(CCH.subSequence(0, CCH.length()))) {
+            } else if (fileName.equals(CCH.subSequence(0, CCH.length()))) {
                 appParamValue.needTag = ContentType.COMBINED_CALL_HISTORY;
                 if (D) Log.v(TAG, "download combined calls request");
             } else {
