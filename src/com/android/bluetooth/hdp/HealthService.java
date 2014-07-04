@@ -209,6 +209,8 @@ public class HealthService extends ProfileService {
                                                   BluetoothHealth.STATE_CHANNEL_DISCONNECTED,
                                                   BluetoothHealth.STATE_CHANNEL_DISCONNECTING,
                                                   chan.mChannelFd, chan.mChannelId);
+                    } else {
+                        mHealthChannels.add(chan);
                     }
                 }
                     break;
