@@ -231,6 +231,14 @@
         </receiver>
         <service
             android:process="@string/process"
+            android:name=".pbap.BluetoothPceService"
+            android:enabled="@bool/profile_supported_pce" >
+            <intent-filter>
+                <action android:name="android.bluetooth.IBluetoothPce" />
+            </intent-filter>
+        </service>
+        <service
+            android:process="@string/process"
             android:name=".map.BluetoothMapService"
             android:enabled="@bool/profile_supported_map" >
             <intent-filter>
