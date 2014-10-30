@@ -47,6 +47,8 @@ static jmethodID method_acquireWakeLock;
 static jmethodID method_releaseWakeLock;
 static jmethodID method_deviceMasInstancesFoundCallback;
 static jmethodID method_energyInfo;
+static jmethodID method_vendorSpecificReceiveCallback;
+static jmethodID method_vendorSpecificEventCallback;
 
 static const bt_interface_t *sBluetoothInterface = NULL;
 static const btsock_interface_t *sBluetoothSocketInterface = NULL;
@@ -421,6 +423,36 @@ Fail:
     ALOGE("Error while allocating in: %s", __FUNCTION__);
 }
 
+static void vendor_specific_recv_cb(uint16_t opcode, uint8_t *buf, uint8_t len) {
+    jbyteArray params;
+    if (!checkCallbackThread()) {
+        ALOGE("Callback: '%s' is not called on the correct thread", __FUNCTION__);
+        return;
+    }
+    if (!buf) {
+        ALOGE("Address is null in %s", __FUNCTION__);
+        return;
+    }
+
+    ALOGV("%s: Opcode: %i", __FUNCTION__, opcode);
+
+    params = callbackEnv->NewByteArray(len);
+    if (params == NULL) goto Fail;
+    callbackEnv->SetByteArrayRegion(params, 0, len, (jbyte*)buf);
+
+    callbackEnv->CallVoidMethod(sJniCallbacksObj, method_vendorSpecificReceiveCallback,
+                                (jshort) opcode, params);
+
+    checkAndClearExceptionFromCallback(callbackEnv, __FUNCTION__);
+    callbackEnv->DeleteLocalRef(params);
+    return;
+
+Fail:
+    if (params) callbackEnv->DeleteLocalRef(params);
+
+    ALOGE("Error while allocating in: %s", __FUNCTION__);
+}
+
 static void callback_thread_event(bt_cb_thread_evt event) {
     JavaVM* vm = AndroidRuntime::getJavaVM();
     if (event  == ASSOCIATE_JVM) {
@@ -462,6 +494,33 @@ static void energy_info_recv_callback(bt_activity_energy_info *p_energy_info)
     checkAndClearExceptionFromCallback(callbackEnv, __FUNCTION__);
 }
 
+static void vendor_specific_event_callback(uint8_t *buf, uint8_t len) {
+    jbyteArray params;
+    if (!checkCallbackThread()) {
+        ALOGE("Callback: '%s' is not called on the correct thread", __FUNCTION__);
+        return;
+    }
+    if (!buf) {
+        ALOGE("Address is null in %s", __FUNCTION__);
+        return;
+    }
+
+    params = callbackEnv->NewByteArray(len);
+    if (params == NULL) goto Fail;
+    callbackEnv->SetByteArrayRegion(params, 0, len, (jbyte*)buf);
+
+    callbackEnv->CallVoidMethod(sJniCallbacksObj, method_vendorSpecificEventCallback, params);
+
+    checkAndClearExceptionFromCallback(callbackEnv, __FUNCTION__);
+    callbackEnv->DeleteLocalRef(params);
+    return;
+
+Fail:
+    if (params) callbackEnv->DeleteLocalRef(params);
+
+    ALOGE("Error while allocating in: %s", __FUNCTION__);
+}
+
 static bt_callbacks_t sBluetoothCallbacks = {
     sizeof(sBluetoothCallbacks),
     adapter_state_change_callback,
@@ -477,7 +536,9 @@ static bt_callbacks_t sBluetoothCallbacks = {
     dut_mode_recv_callback,
 
     le_test_mode_recv_callback,
-    energy_info_recv_callback
+    energy_info_recv_callback,
+    vendor_specific_recv_cb,
+    vendor_specific_event_callback,
 };
 
 // The callback to call when the wake alarm fires.
@@ -714,6 +775,15 @@ static void classInitNative(JNIEnv* env, jclass clazz) {
                                                     "deviceMasInstancesFoundCallback",
                                                     "(I[B[Ljava/lang/String;[I[I[I)V");
     method_energyInfo = env->GetMethodID(clazz, "energyInfoCallback", "(IIJJJJ)V");
+
+
+    method_vendorSpecificReceiveCallback = env->GetMethodID(jniCallbackClass,
+                                                            "vendorSpecificReceiveCallback",
+                                                            "(S[B)V");
+
+    method_vendorSpecificEventCallback = env->GetMethodID(jniCallbackClass,
+                                                          "vendorSpecificEventCallback",
+                                                          "([B)V");
 
     char value[PROPERTY_VALUE_MAX];
     property_get("bluetooth.mock_stack", value, "");
@@ -965,6 +1035,41 @@ static jboolean sspReplyNative(JNIEnv *env, jobject obj, jbyteArray address,
     int ret = sBluetoothInterface->ssp_reply((bt_bdaddr_t *)addr,
          (bt_ssp_variant_t) type, accept, passkey);
     env->ReleaseByteArrayElements(address, addr, 0);
+    result = (ret == BT_STATUS_SUCCESS) ? JNI_TRUE : JNI_FALSE;
+
+    return result;
+}
+
+static jboolean sendVendorSpecificCommandNative(JNIEnv *env, jobject obj, jshort opcode,
+                                                jbyteArray parameters) {
+    ALOGV("%s",__FUNCTION__);
+
+    jbyte *params;
+    jboolean result = JNI_FALSE;
+    if(!sBluetoothInterface) return result;
+
+    jsize len = env->GetArrayLength(parameters);
+    params = env->GetByteArrayElements(parameters, 0);
+    if(params == NULL) {
+        jniThrowIOException(env, EINVAL);
+        return result;
+    }
+
+    int ret = sBluetoothInterface->vendor_specific_command((uint16_t) opcode, (uint8_t *) params,
+                                                           (uint8_t) len);
+    env->ReleaseByteArrayElements(parameters, params, 0);
+    result = (ret == BT_STATUS_SUCCESS) ? JNI_TRUE : JNI_FALSE;
+
+    return result;
+}
+
+static jboolean enableVendorSpecificEventsNative(JNIEnv *env, jobject obj, jboolean enable) {
+    ALOGV("%s",__FUNCTION__);
+
+    jboolean result = JNI_FALSE;
+    if(!sBluetoothInterface) return result;
+
+    int ret = sBluetoothInterface->enable_vendor_specific_events(enable);
     result = (ret == BT_STATUS_SUCCESS) ? JNI_TRUE : JNI_FALSE;
 
     return result;
@@ -1242,6 +1347,8 @@ static JNINativeMethod sMethods[] = {
     {"configHciSnoopLogNative", "(Z)Z", (void*) configHciSnoopLogNative},
     {"alarmFiredNative", "()V", (void *) alarmFiredNative},
     {"readEnergyInfo", "()I", (void*) readEnergyInfo},
+    {"sendVendorSpecificCommandNative", "(S[B)Z", (void*) sendVendorSpecificCommandNative},
+    {"enableVendorSpecificEventsNative", "(Z)Z", (void*) enableVendorSpecificEventsNative},
 };
 
 int register_com_android_bluetooth_btservice_AdapterService(JNIEnv* env)
