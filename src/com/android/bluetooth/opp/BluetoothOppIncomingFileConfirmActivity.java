@@ -151,11 +151,7 @@ public class BluetoothOppIncomingFileConfirmActivity extends AlertActivity imple
                 break;
 
             case DialogInterface.BUTTON_NEGATIVE:
-                // Update database
-                mUpdateValues = new ContentValues();
-                mUpdateValues.put(BluetoothShare.USER_CONFIRMATION,
-                        BluetoothShare.USER_CONFIRMATION_DENIED);
-                this.getContentResolver().update(mUri, mUpdateValues, null, null);
+                this.getContentResolver().delete(mUri, null, null);
                 break;
         }
     }

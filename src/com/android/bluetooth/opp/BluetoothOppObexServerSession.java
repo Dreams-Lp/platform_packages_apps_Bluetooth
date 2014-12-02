@@ -444,12 +444,6 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
 
         Uri contentUri = Uri.parse(BluetoothShare.CONTENT_URI + "/" + mInfo.mId);
 
-        if (!error) {
-            ContentValues updateValues = new ContentValues();
-            updateValues.put(BluetoothShare._DATA, fileInfo.mFileName);
-            mContext.getContentResolver().update(contentUri, updateValues, null, null);
-        }
-
         int position = 0;
         if (!error) {
             bos = new BufferedOutputStream(fileInfo.mOutputStream, 0x10000);
@@ -532,6 +526,12 @@ public class BluetoothOppObexServerSession extends ServerRequestHandler implemen
             Log.v(TAG, "length    :" + fileInfo.mLength);
             Log.v(TAG, "status    :" + fileInfo.mStatus);
         }
+
+        Uri contentUri = Uri.parse(BluetoothShare.CONTENT_URI + "/" + mInfo.mId);
+        ContentValues updateValues = new ContentValues();
+        updateValues.put(BluetoothShare._DATA, fileInfo.mFileName);
+        mContext.getContentResolver().update(contentUri, updateValues, null, null);
+
         return fileInfo;
     }
 
