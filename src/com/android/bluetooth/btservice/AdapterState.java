@@ -20,6 +20,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Message;
+import android.os.SystemProperties;
 import android.util.Log;
 
 import com.android.internal.util.State;
@@ -60,7 +61,7 @@ final class AdapterState extends StateMachine {
     static final int USER_TURN_OFF_DELAY_MS=500;
 
     //TODO: tune me
-    private static final int ENABLE_TIMEOUT_DELAY = 8000;
+    private static final int DEFAULT_ENABLE_TIMEOUT_DELAY = 8000;
     private static final int DISABLE_TIMEOUT_DELAY = 8000;
     private static final int START_TIMEOUT_DELAY = 5000;
     private static final int STOP_TIMEOUT_DELAY = 5000;
@@ -70,6 +71,7 @@ final class AdapterState extends StateMachine {
     private PendingCommandState mPendingCommandState = new PendingCommandState();
     private OnState mOnState = new OnState();
     private OffState mOffState = new OffState();
+    private int enable_timeout_delay;
 
     public boolean isTurningOn() {
         boolean isTurningOn=  mPendingCommandState.isTurningOn();
@@ -264,7 +266,13 @@ final class AdapterState extends StateMachine {
                         notifyAdapterStateChange(BluetoothAdapter.STATE_OFF);
                         transitionTo(mOffState);
                     } else {
-                        sendMessageDelayed(ENABLE_TIMEOUT, ENABLE_TIMEOUT_DELAY);
+                        String timeout = SystemProperties.get("bt.enable.timeout.delay");
+                        if (!timeout.isEmpty())
+                            enable_timeout_delay = Integer.parseInt(timeout);
+                        else
+                            enable_timeout_delay = DEFAULT_ENABLE_TIMEOUT_DELAY;
+                        Log.d(TAG, "enable_timeout_delay = " + enable_timeout_delay + " ms");
+                        sendMessageDelayed(ENABLE_TIMEOUT, enable_timeout_delay);
                     }
                 }
                     break;
