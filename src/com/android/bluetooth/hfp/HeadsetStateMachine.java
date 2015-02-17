@@ -1080,6 +1080,11 @@ final class HeadsetStateMachine extends StateMachine {
                     broadcastAudioState(device, BluetoothHeadset.STATE_AUDIO_CONNECTING,
                                         BluetoothHeadset.STATE_AUDIO_DISCONNECTED);
                     break;
+                case HeadsetHalConstants.AUDIO_STATE_DISCONNECTED:
+                    mAudioState = BluetoothHeadset.STATE_AUDIO_DISCONNECTED;
+                    broadcastAudioState(device, BluetoothHeadset.STATE_AUDIO_DISCONNECTED,
+                                        BluetoothHeadset.STATE_AUDIO_CONNECTING);
+                    break;
                     // TODO(BT) process other states
                 default:
                     Log.e(TAG, "Audio State Device: " + device + " bad state: " + state);
