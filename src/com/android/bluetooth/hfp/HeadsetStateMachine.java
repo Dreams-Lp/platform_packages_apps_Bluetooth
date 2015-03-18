@@ -189,6 +189,8 @@ final class HeadsetStateMachine extends StateMachine {
     private BluetoothDevice mActiveScoDevice = null;
     private BluetoothDevice mMultiDisconnectDevice = null;
 
+    private int mConnectionState = HeadsetHalConstants.CONNECTION_STATE_DISCONNECTED;
+
     // Multi HFP: Connected devices list holds all currently connected headsets
     private ArrayList<BluetoothDevice> mConnectedDevicesList =
                                              new ArrayList<BluetoothDevice>();
@@ -322,6 +324,7 @@ final class HeadsetStateMachine extends StateMachine {
             mPhoneState.listenForPhoneState(false);
             mVoiceRecognitionStarted = false;
             mWaitingForVoiceRecognition = false;
+            mConnectionState = HeadsetHalConstants.CONNECTION_STATE_DISCONNECTED;
         }
 
         @Override
@@ -738,10 +741,13 @@ final class HeadsetStateMachine extends StateMachine {
     }
 
     private class Connected extends State {
+	        boolean mDeferVirtualVoiceCall = false;
+
         @Override
         public void enter() {
             log("Enter Connected: " + getCurrentMessage().what +
                            ", size: " + mConnectedDevicesList.size());
+            mDeferVirtualVoiceCall = false;
             // start phone state listener here so that the CIND response as part of SLC can be
             // responded to, correctly.
             // we may enter Connected from Disconnected/Pending/AudioOn. listenForPhoneState
@@ -897,7 +903,12 @@ final class HeadsetStateMachine extends StateMachine {
                 }
                     break;
                 case VIRTUAL_CALL_START:
-                    initiateScoUsingVirtualVoiceCall();
+                    if (mConnectionState == HeadsetHalConstants.CONNECTION_STATE_SLC_CONNECTED) {
+                        initiateScoUsingVirtualVoiceCall();
+                    }
+                    else {
+                        mDeferVirtualVoiceCall = true;
+                    }
                     break;
                 case VIRTUAL_CALL_STOP:
                     terminateScoUsingVirtualVoiceCall();
@@ -1005,6 +1016,7 @@ final class HeadsetStateMachine extends StateMachine {
                                                            + device);
             switch (state) {
                 case HeadsetHalConstants.CONNECTION_STATE_DISCONNECTED:
+                    mDeferVirtualVoiceCall = false;
                     if (mConnectedDevicesList.contains(device)) {
                         processWBSEvent(0, device); /* disable WBS audio parameters */
                         synchronized (HeadsetStateMachine.this) {
@@ -1107,6 +1119,10 @@ final class HeadsetStateMachine extends StateMachine {
             if (mPhoneProxy != null) {
                 try {
                     mPhoneProxy.queryPhoneState();
+                    if (mDeferVirtualVoiceCall) {
+                        mDeferVirtualVoiceCall = false;
+                        initiateScoUsingVirtualVoiceCall();
+                    }
                 } catch (RemoteException e) {
                     Log.e(TAG, Log.getStackTraceString(new Throwable()));
                 }
