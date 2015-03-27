@@ -32,6 +32,8 @@ import android.bluetooth.IBluetooth;
 import android.bluetooth.IBluetoothCallback;
 import android.bluetooth.IBluetoothManager;
 import android.bluetooth.IBluetoothManagerCallback;
+import android.bluetooth.IBluetoothVS;
+import android.bluetooth.IBluetoothVSCallback;
 import android.bluetooth.BluetoothActivityEnergyInfo;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
@@ -43,6 +45,7 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Message;
 import android.os.ParcelFileDescriptor;
 import android.os.ParcelUuid;
@@ -111,6 +114,8 @@ public class AdapterService extends Service {
         android.Manifest.permission.BLUETOOTH_ADMIN;
     public static final String BLUETOOTH_PRIVILEGED =
                 android.Manifest.permission.BLUETOOTH_PRIVILEGED;
+    static final String BLUETOOTH_VENDOR_SPECIFIC =
+            android.Manifest.permission.BLUETOOTH_VENDOR_SPECIFIC;
     static final String BLUETOOTH_PERM = android.Manifest.permission.BLUETOOTH;
     static final String RECEIVE_MAP_PERM = android.Manifest.permission.RECEIVE_BLUETOOTH_MAP;
 
@@ -172,6 +177,7 @@ public class AdapterService extends Service {
     private RemoteCallbackList<IBluetoothCallback> mCallbacks;//Only BluetoothManagerService should be registered
     private int mCurrentRequestId;
     private boolean mQuietmode = false;
+    private VSCallbackList mVSList;
 
     private AlarmManager mAlarmManager;
     private PendingIntent mPendingAlarm;
@@ -347,9 +353,11 @@ public class AdapterService extends Service {
         super.onCreate();
         debugLog("onCreate()");
         mBinder = new AdapterServiceBinder(this);
+        mVSBinder = new AdapterServiceVSBinder(this);
         mAdapterProperties = new AdapterProperties(this);
         mAdapterStateMachine =  AdapterState.make(this, mAdapterProperties);
-        mJniCallbacks =  new JniCallbacks(mAdapterStateMachine, mAdapterProperties);
+        mVSList = new VSCallbackList(mAdapterStateMachine);
+        mJniCallbacks =  new JniCallbacks(mAdapterStateMachine, mAdapterProperties, mVSList);
         initNative();
         mNativeAvailable=true;
         mCallbacks = new RemoteCallbackList<IBluetoothCallback>();
@@ -364,16 +372,21 @@ public class AdapterService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
-        debugLog("onBind()");
-        return mBinder;
-    }
-    public boolean onUnbind(Intent intent) {
-        debugLog("onUnbind() - calling cleanup");
-        cleanup();
-        return super.onUnbind(intent);
+        String action = intent.getAction();
+        debugLog("onBind(): action=" + action);
+        if(IBluetooth.class.getName().equals(action)) {
+            return mBinder;
+        } else if (IBluetoothVS.class.getName().equals(action)) {
+            return mVSBinder;
+        } else {
+            Log.w(TAG, "Bound with unknown action: " + action);
+            return null;
+        }
     }
 
     public void onDestroy() {
+        debugLog("starting onDestroy, calling cleanup");
+        cleanup();
         debugLog("onDestroy()");
     }
 
@@ -459,6 +472,10 @@ public class AdapterService extends Service {
             }
         }
 
+        if (mVSList != null) {
+            mVSList.kill();
+        }
+
         if (mAdapterStateMachine != null) {
             mAdapterStateMachine.doQuit();
             mAdapterStateMachine.cleanup();
@@ -496,6 +513,11 @@ public class AdapterService extends Service {
         if (mBinder != null) {
             mBinder.cleanup();
             mBinder = null;  //Do not remove. Otherwise Binder leak!
+        }
+
+        if (mVSBinder != null) {
+            mVSBinder.cleanup();
+            mVSBinder = null;
         }
 
         if (mCallbacks !=null) {
@@ -605,6 +627,8 @@ public class AdapterService extends Service {
      * Handlers for incoming service calls
      */
     private AdapterServiceBinder mBinder;
+
+    private AdapterServiceVSBinder mVSBinder;
 
     /**
      * The Binder implementation must be declared to be a static class, with
@@ -1150,6 +1174,61 @@ public class AdapterService extends Service {
          }
     };
 
+    private static class AdapterServiceVSBinder extends IBluetoothVS.Stub {
+        private AdapterService mService;
+
+        public AdapterServiceVSBinder(AdapterService svc) {
+            mService = svc;
+        }
+
+        public boolean cleanup() {
+            mService = null;
+            return true;
+        }
+
+        public AdapterService getService() {
+            if (mService != null && mService.isAvailable()) {
+                return mService;
+            }
+            return null;
+        }
+
+        public void registerVSCallback(final IBluetoothVSCallback callback) {
+            AdapterService service = getService();
+            if (service == null) {
+                // This should happen pretty rarely, so the overhead of creating
+                // a new handler should be fine.
+                new Handler(Looper.getMainLooper()).post(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            callback.onInterfaceDown();
+                        } catch (RemoteException e) { /* Don't care */ }
+                    }
+                });
+                return;
+            }
+            service.registerVSCallback(callback);
+        }
+
+        public void unregisterVSCallback(IBluetoothVSCallback callback) {
+            AdapterService service = getService();
+            if (service == null) return;
+            service.unregisterVSCallback(callback);
+        }
+
+        public void sendVendorSpecificCommand(int opcode, byte[] parameters) {
+            AdapterService service = getService();
+            if (service == null) return;
+            service.sendVendorSpecificCommand((short)opcode, parameters);
+        }
+
+        public void setVSEventFilter(IBluetoothVSCallback cb, byte[] mask, byte[] value) {
+            AdapterService service = getService();
+            if (service == null) return;
+            service.setVSEventFilter(cb, mask, value);
+        }
+    }
 
     //----API Methods--------
      boolean isEnabled() {
@@ -1423,6 +1502,23 @@ public class AdapterService extends Service {
                  !device.equals(connectedDevice)) {
                  a2dpService.setPriority(device, BluetoothProfile.PRIORITY_ON);
              }
+         }
+     }
+
+     void updateStateMachineState(int newState) {
+         VSCallbackList VSList = mVSList;
+         if(VSList != null) {
+             VSList.onStateUpdate(newState);
+         }
+
+         // TODO: timeout waiting for state off when cleaning up?
+
+         // Bad things can happen if we don't wait for the lower layet to finish disabling before
+         // we call cleanup, so we make sure the service is started when in ant state other than OFF.
+         if(newState == AdapterState.STATE_OFF) {
+             stopSelf();
+         } else {
+             startService(new Intent(getApplicationContext(), getClass()));
          }
      }
 
@@ -1730,6 +1826,32 @@ public class AdapterService extends Service {
         return info;
     }
 
+    void registerVSCallback(IBluetoothVSCallback cb) {
+        enforceCallingOrSelfPermission(BLUETOOTH_VENDOR_SPECIFIC,
+                "Need BLUETOOTH_VENDOR_SPECIFIC permission");
+        if (DBG) Log.d(TAG, "VS interface registered.");
+        mVSList.register(cb);
+    }
+
+    void unregisterVSCallback(IBluetoothVSCallback cb) {
+        enforceCallingOrSelfPermission(BLUETOOTH_VENDOR_SPECIFIC,
+                "Need BLUETOOTH_VENDOR_SPECIFIC permission");
+        if (DBG) Log.d(TAG, "VS interface umregistered.");
+        mVSList.unregister(cb);
+    }
+
+    public void sendVendorSpecificCommand(short opcode, byte [] parameters) {
+        enforceCallingOrSelfPermission(BLUETOOTH_VENDOR_SPECIFIC,
+                "Need BLUETOOTH_VENDOR_SPECIFIC permission");
+        sendVendorSpecificCommandNative(opcode, parameters);
+    }
+
+    private void setVSEventFilter(IBluetoothVSCallback cb, byte[] mask, byte[] value) {
+        enforceCallingOrSelfPermission(BLUETOOTH_VENDOR_SPECIFIC,
+                "Need BLUETOOTH_VENDOR_SPECIFIC permission");
+        mVSList.setFilter(cb, mask, value);
+    }
+
     private String dump() {
         StringBuilder sb = new StringBuilder();
         synchronized (mProfiles) {
@@ -1865,6 +1987,12 @@ public class AdapterService extends Service {
         Log.e(TAG +"(" +hashCode()+")", msg);
     }
 
+    boolean isPowerLockHeld()
+    {
+        return mVSList.areLocksHeld();
+    }
+
+
     private final BroadcastReceiver mAlarmBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -1898,6 +2026,8 @@ public class AdapterService extends Service {
     private native boolean sspReplyNative(byte[] address, int type, boolean
             accept, int passkey);
 
+    private native boolean sendVendorSpecificCommandNative(short opcode, byte [] parameters);
+
     /*package*/ native boolean getRemoteServicesNative(byte[] address);
     /*package*/ native boolean getRemoteMasInstancesNative(byte[] address);
 
@@ -1909,6 +2039,8 @@ public class AdapterService extends Service {
                                                  byte[] uuid, int port, int flag);
 
     /*package*/ native boolean configHciSnoopLogNative(boolean enable);
+
+    /*package*/ native boolean enableVendorSpecificEventsNative(boolean enable);
 
     private native void alarmFiredNative();
 
