@@ -1097,7 +1097,21 @@ final class HeadsetClientStateMachine extends StateMachine {
 
             switch (c.getState()) {
                 case BluetoothHeadsetClientCall.CALL_STATE_ACTIVE:
-                    action = HeadsetClientHalConstants.CALL_ACTION_CHLD_1x;
+                    if ((mPeerFeatures & HeadsetClientHalConstants.PEER_FEAT_ECC) ==
+                                    HeadsetClientHalConstants.PEER_FEAT_ECC) {
+                         action = HeadsetClientHalConstants.CALL_ACTION_CHLD_1x;
+                    } else {
+                         action = HeadsetClientHalConstants.CALL_ACTION_CHLD_1;
+                    }
+                    break;
+                case BluetoothHeadsetClientCall.CALL_STATE_WAITING:
+                case BluetoothHeadsetClientCall.CALL_STATE_HELD:
+                    if ((mPeerFeatures & HeadsetClientHalConstants.PEER_FEAT_ECC) ==
+                                    HeadsetClientHalConstants.PEER_FEAT_ECC) {
+                        action = HeadsetClientHalConstants.CALL_ACTION_CHLD_1x;
+                    } else {
+                        action = HeadsetClientHalConstants.CALL_ACTION_CHLD_0;
+                    }
                     break;
                 case BluetoothHeadsetClientCall.CALL_STATE_DIALING:
                 case BluetoothHeadsetClientCall.CALL_STATE_ALERTING:
