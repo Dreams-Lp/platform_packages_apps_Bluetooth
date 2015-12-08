@@ -154,6 +154,8 @@ final class HeadsetStateMachine extends StateMachine {
     private AudioManager mAudioManager;
     private AtPhonebook mPhonebook;
 
+    private boolean mA2dpSuspended = false;
+
     private static Intent sVoiceCommandIntent;
 
     private HeadsetPhoneState mPhoneState;
@@ -214,6 +216,7 @@ final class HeadsetStateMachine extends StateMachine {
         mStartVoiceRecognitionWakeLock.setReferenceCounted(false);
 
         mDialingOut = false;
+        mA2dpSuspended = false;
         mAudioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         mPhonebook = new AtPhonebook(mService, this);
         mPhoneState = new HeadsetPhoneState(context, this);
@@ -862,7 +865,7 @@ final class HeadsetStateMachine extends StateMachine {
                         device = mActiveScoDevice;
                     }
                     log("connectAudioNative in Connected for device = " + device);
-                    connectAudioNative(getByteAddress(device));
+                    connectAudio(getByteAddress(device));
                 }
                     break;
                 case VOICE_RECOGNITION_START:
@@ -1091,12 +1094,13 @@ final class HeadsetStateMachine extends StateMachine {
                 case HeadsetHalConstants.AUDIO_STATE_CONNECTED:
                     if (!isScoAcceptable()) {
                         Log.e(TAG,"Audio Connected without any listener");
-                        disconnectAudioNative(getByteAddress(device));
+                        disconnectAudio(getByteAddress(device));
                         break;
                     }
 
                     // TODO(BT) should I save the state for next broadcast as the prevState?
                     mAudioState = BluetoothHeadset.STATE_AUDIO_CONNECTED;
+                    setA2dpSuspended(true);
                     setAudioParameters(device); /*Set proper Audio Paramters.*/
                     mAudioManager.setBluetoothScoOn(true);
                     broadcastAudioState(device, BluetoothHeadset.STATE_AUDIO_CONNECTED,
@@ -1189,7 +1193,7 @@ final class HeadsetStateMachine extends StateMachine {
                     if (max_hf_connections == 1) {
                         deferMessage(obtainMessage(DISCONNECT, mCurrentDevice));
                         deferMessage(obtainMessage(CONNECT, device));
-                        if (disconnectAudioNative(getByteAddress(mCurrentDevice))) {
+                        if (disconnectAudio(getByteAddress(mCurrentDevice))) {
                             Log.d(TAG, "Disconnecting SCO audio for device = " + mCurrentDevice);
                         } else {
                             Log.e(TAG, "disconnectAudioNative failed");
@@ -1262,7 +1266,7 @@ final class HeadsetStateMachine extends StateMachine {
                                             "is active SCO device");
                         deferMessage(obtainMessage(DISCONNECT, message.obj));
                         // Disconnect BT SCO first
-                        if (disconnectAudioNative(getByteAddress(mActiveScoDevice))) {
+                        if (disconnectAudio(getByteAddress(mActiveScoDevice))) {
                             log("Disconnecting SCO audio");
                         } else {
                             // if disconnect BT SCO failed, transition to mConnected state
@@ -1293,7 +1297,7 @@ final class HeadsetStateMachine extends StateMachine {
                 break;
                 case DISCONNECT_AUDIO:
                     if (mActiveScoDevice != null) {
-                        if (disconnectAudioNative(getByteAddress(mActiveScoDevice))) {
+                        if (disconnectAudio(getByteAddress(mActiveScoDevice))) {
                             log("Disconnecting SCO audio for device = " +
                                                  mActiveScoDevice);
                         } else {
@@ -1529,6 +1533,7 @@ final class HeadsetStateMachine extends StateMachine {
                         broadcastAudioState(device, BluetoothHeadset.STATE_AUDIO_DISCONNECTED,
                                             BluetoothHeadset.STATE_AUDIO_CONNECTED);
                     }
+                    setA2dpSuspended(false);
                     transitionTo(mConnected);
                     break;
                 case HeadsetHalConstants.AUDIO_STATE_DISCONNECTING:
@@ -1605,7 +1610,7 @@ final class HeadsetStateMachine extends StateMachine {
 
                 case CONNECT_AUDIO:
                     if (mCurrentDevice != null) {
-                        connectAudioNative(getByteAddress(mCurrentDevice));
+                        connectAudio(getByteAddress(mCurrentDevice));
                     }
                     break;
                 case CONNECT_TIMEOUT:
@@ -1615,7 +1620,7 @@ final class HeadsetStateMachine extends StateMachine {
 
                 case DISCONNECT_AUDIO:
                     if (mActiveScoDevice != null) {
-                        if (disconnectAudioNative(getByteAddress(mActiveScoDevice))) {
+                        if (disconnectAudio(getByteAddress(mActiveScoDevice))) {
                             Log.d(TAG, "MultiHFPending, Disconnecting SCO audio for " +
                                                  mActiveScoDevice);
                         } else {
@@ -1972,10 +1977,11 @@ final class HeadsetStateMachine extends StateMachine {
                 case HeadsetHalConstants.AUDIO_STATE_CONNECTED:
                     if (!isScoAcceptable()) {
                         Log.e(TAG,"Audio Connected without any listener");
-                        disconnectAudioNative(getByteAddress(device));
+                        disconnectAudio(getByteAddress(device));
                         break;
                     }
                     mAudioState = BluetoothHeadset.STATE_AUDIO_CONNECTED;
+                    setA2dpSuspended(true);
                     setAudioParameters(device); /* Set proper Audio Parameters. */
                     mAudioManager.setBluetoothScoOn(true);
                     mActiveScoDevice = device;
@@ -1996,6 +2002,7 @@ final class HeadsetStateMachine extends StateMachine {
                         mAudioManager.setBluetoothScoOn(false);
                         broadcastAudioState(device, BluetoothHeadset.STATE_AUDIO_DISCONNECTED,
                                             BluetoothHeadset.STATE_AUDIO_CONNECTED);
+                        setA2dpSuspended(false);
                     }
                     /* The state should be still in MultiHFPending state when audio
                        disconnected since other device is still connecting/
@@ -2200,8 +2207,7 @@ final class HeadsetStateMachine extends StateMachine {
                 mVoiceRecognitionStarted = false;
                 mWaitingForVoiceRecognition = false;
                 if (!isInCall() && (mActiveScoDevice != null)) {
-                    disconnectAudioNative(getByteAddress(mActiveScoDevice));
-                    mAudioManager.setParameters("A2dpSuspended=false");
+                    disconnectAudio(getByteAddress(mActiveScoDevice));
                 }
             }
             else
@@ -2259,9 +2265,8 @@ final class HeadsetStateMachine extends StateMachine {
                 // or MODE_IN_CALL which shall automatically suspend the AVDTP stream if needed.
                 // Whereas for VoiceDial we want to activate the SCO connection but we are still
                 // in MODE_NORMAL and hence the need to explicitly suspend the A2DP stream
-                mAudioManager.setParameters("A2dpSuspended=true");
                 if (device != null) {
-                    connectAudioNative(getByteAddress(device));
+                    connectAudio(getByteAddress(device));
                 } else {
                     Log.e(TAG, "device not found for VR");
                 }
@@ -2282,8 +2287,7 @@ final class HeadsetStateMachine extends StateMachine {
 
                 if (stopVoiceRecognitionNative(getByteAddress(mCurrentDevice))
                                 && !isInCall() && mActiveScoDevice != null) {
-                    disconnectAudioNative(getByteAddress(mActiveScoDevice));
-                    mAudioManager.setParameters("A2dpSuspended=false");
+                    disconnectAudio(getByteAddress(mActiveScoDevice));
                 }
             }
         }
@@ -2503,6 +2507,27 @@ final class HeadsetStateMachine extends StateMachine {
         mVirtualCallStarted = state;
     }
 
+    /* Method to suspend A2DP if SCO is needed */
+    private void setA2dpSuspended(boolean suspended) {
+        if (DBG) log("setA2dpSuspended: " + suspended);
+        if (mA2dpSuspended == suspended) {
+            return;
+        }
+        mA2dpSuspended = suspended;
+        mAudioManager.setParameters("A2dpSuspended=" + (mA2dpSuspended ? "true" : "false"));
+    }
+
+    private boolean disconnectAudio(byte[] address) {
+        boolean ret = disconnectAudioNative(address);
+        setA2dpSuspended(false);
+        return ret;
+    }
+
+    private boolean connectAudio(byte[] address) {
+        setA2dpSuspended(true);
+        return connectAudioNative(address);
+    }
+
     /* NOTE: Currently the VirtualCall API does not support handling of
     call transfers. If it is initiated from the handsfree device,
     HeadsetStateMachine will end the virtual call by calling
@@ -2514,6 +2539,9 @@ final class HeadsetStateMachine extends StateMachine {
             Log.e(TAG, "initiateScoUsingVirtualVoiceCall: Call in progress.");
             return false;
         }
+
+        // suspend A2DP since SCO is about to be requested
+        setA2dpSuspended(true);
 
         // 2. Send virtual phone state changed to initialize SCO
         processCallState(new HeadsetCallState(0, 0,
@@ -2541,6 +2569,7 @@ final class HeadsetStateMachine extends StateMachine {
         processCallState(new HeadsetCallState(0, 0,
             HeadsetHalConstants.CALL_STATE_IDLE, "", 0), true);
         setVirtualCallInProgress(false);
+        setA2dpSuspended(false);
         // Done
         if (DBG) log("terminateScoUsingVirtualVoiceCall: Done");
         return true;
@@ -3086,7 +3115,7 @@ final class HeadsetStateMachine extends StateMachine {
         } else if (mPhoneState.getNumActiveCall() > 0) {
             if (!isAudioOn())
             {
-                connectAudioNative(getByteAddress(mCurrentDevice));
+                connectAudio(getByteAddress(mCurrentDevice));
             }
             else
             {
