@@ -659,9 +659,12 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
                     if (D) Log.d(TAG, "currentValue=" + currentValue);
                     if (currentValue.equals(compareValue)) {
                         itemsFound++;
-                        if (currentValue.contains(","))
+                        int handle = pos;
+                        if (currentValue.contains(",")) {
+                           handle = Integer.valueOf(currentValue.substring(currentValue.lastIndexOf(',') + 1));
                            currentValue = currentValue.substring(0, currentValue.lastIndexOf(','));
-                        writeVCardEntry(pos, currentValue,result);
+                        }
+                        writeVCardEntry(handle, currentValue,result);
                     }
                 }
                 if (itemsFound >= requestSize) {
@@ -675,12 +678,15 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
             for (int pos = listStartOffset; pos < listSize &&
                     itemsFound < requestSize; pos++) {
                 currentValue = nameList.get(pos);
-                if (currentValue.contains(","))
+                int handle = pos;
+                if (currentValue.contains(",")) {
+                    handle = Integer.valueOf(currentValue.substring(currentValue.lastIndexOf(',') + 1));
                     currentValue = currentValue.substring(0, currentValue.lastIndexOf(','));
+                }
 
                 if (searchValue.isEmpty() || ((currentValue.toLowerCase()).equals(compareValue.toLowerCase()))) {
                     itemsFound++;
-                    writeVCardEntry(pos, currentValue,result);
+                    writeVCardEntry(handle, currentValue,result);
                 }
             }
         }
@@ -918,7 +924,7 @@ public class BluetoothPbapObexServer extends ServerRequestHandler {
             Log.w(TAG, "wrong path!");
             return ResponseCodes.OBEX_HTTP_NOT_ACCEPTABLE;
         } else if (appParamValue.needTag == ContentType.PHONEBOOK) {
-            if (intIndex < 0 || intIndex >= size) {
+            if (intIndex < 0) {
                 Log.w(TAG, "The requested vcard is not acceptable! name= " + name);
                 return ResponseCodes.OBEX_HTTP_NOT_FOUND;
             } else if (intIndex == 0) {

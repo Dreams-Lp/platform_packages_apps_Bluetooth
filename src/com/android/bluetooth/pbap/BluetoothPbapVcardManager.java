@@ -442,23 +442,23 @@ public class BluetoothPbapVcardManager {
         final Uri myUri = DevicePolicyUtils.getEnterprisePhoneUri(mContext);
 
         Cursor contactCursor = null;
-        Cursor contactIdCursor = new MatrixCursor(new String[] {
-            Phone.CONTACT_ID
-        });
+        String selection = Phone.CONTACT_ID + "=" + offset + " AND " + CLAUSE_ONLY_VISIBLE;
         try {
             contactCursor = mResolver.query(myUri, PHONES_CONTACTS_PROJECTION,
-                    CLAUSE_ONLY_VISIBLE, null, Phone.CONTACT_ID);
-            contactIdCursor = ContactCursorFilter.filterByOffset(contactCursor, offset);
+                    selection, null, Phone.CONTACT_ID);
 
         } catch (CursorWindowAllocationException e) {
             Log.e(TAG,
                     "CursorWindowAllocationException while composing phonebook one vcard");
         } finally {
-            if (contactCursor != null) {
+            if (contactCursor == null) {
+                return ResponseCodes.OBEX_HTTP_INTERNAL_ERROR;
+            } else if (contactCursor.getCount() == 0) {
                 contactCursor.close();
+                return ResponseCodes.OBEX_HTTP_NOT_FOUND;
             }
         }
-        return composeContactsAndSendVCards(op, contactIdCursor, vcardType21, ownerVCard,
+        return composeContactsAndSendVCards(op, contactCursor, vcardType21, ownerVCard,
                 ignorefilter, filter);
     }
 
